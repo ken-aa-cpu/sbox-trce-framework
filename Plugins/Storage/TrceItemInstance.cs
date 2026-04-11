@@ -42,7 +42,7 @@ namespace Trce.Plugins.Storage
 		{
 			var instance = new TrceItemInstance
 			{
-				Uid = Guid.NewGuid().ToString( "N" )[..16].ToUpper(), // 16 �X�j�g UID
+				Uid = Guid.NewGuid().ToString( "N" )[..16].ToUpper(), // 16-char uppercase UID
 				ItemId = itemId,
 				Quantity = quantity,
 			};

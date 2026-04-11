@@ -4,23 +4,23 @@ using System.Collections.Generic;
 namespace Trce.Kernel.Plugin.Services
 {
 	/// <summary>
-	/// ?†å??å?ä»‹é¢
+	/// Core interface for handling shop and microtransaction related operations.
 	/// </summary>
 	public interface IShopService
 	{
 		/// <summary>
-		/// /  ? ? ?
+		/// Purchases a specific item for the given player utilizing the specified currency type.
 		/// </summary>
 		void PurchaseItem( ulong steamId, string itemId, string currencyType );
 
 		/// <summary>
-		/// ?–å??€?‰å¯?¨å??å?è¡?
+		/// Retrieves a collection of all available item IDs currently listed in the shop catalog.
 		/// </summary>
 		IEnumerable<string> GetCatalogItems();
 	}
 
 	/// <summary>
-	/// ?šè?è­‰æ??™ä???
+	/// Core interface for managing player Battle Pass progression and status.
 	/// </summary>
 	public interface IBattlePassService
 	{
@@ -29,4 +29,3 @@ namespace Trce.Kernel.Plugin.Services
 		bool HasPremiumPass( ulong steamId );
 	}
 }
-

@@ -14,7 +14,8 @@ namespace Trce.Plugins.Finance
 
 {
 	/// <summary>
-	///   / Battle Pass   ( )
+	/// 戰鬥通行證系統 (Battle Pass)
+	/// 處理玩家 XP 累積、等級晉升與獎勵發放
 	/// </summary>
 	[Title( "Battle Pass Manager" ), Group( "Trce - Economy" )]
 	public class BattlePassManager : Component
@@ -29,12 +30,12 @@ namespace Trce.Plugins.Finance
 		[Property] public string CurrentSeason { get; set; } = "S1";
 		/// <summary>本賽季 Battle Pass 的最高等級上限。達到上限後 XP 不再累積（上限為 XpPerLevel - 1）。</summary>
 		[Property] public int MaxLevel { get; set; } = 50;
-		/// <summary> XP</summary>
+		/// <summary> 每升一級所需的 XP 數量 </summary>
 		[Property] public int XpPerLevel { get; set; } = 100;
 		public Action<ulong, string> OnPassGranted;
 		public Action<ulong, int, bool> OnPassLevelUp;
 		public Action<ulong, string, bool> OnPassRewardGranted;
-		// XP ������v
+		// 定義各種行為所獲得的 XP 數量
 		private const int XP_ROUND_SURVIVE = 80;
 		private const int XP_ROUND_DEAD = 48;
 		private const int XP_TASK_COMPLETE = 20;
@@ -86,9 +87,9 @@ namespace Trce.Plugins.Finance
 		}
 
 		// ====================================================================
-		//  Core�޿�
+		// 核心邏輯 (Core)
 		// ====================================================================
-		/// <summary> (Premium  )</summary>
+		/// <summary> 授予玩家進階通行證 (Premium) 資格 </summary>
 		public void GrantPass( ulong steamId )
 		{
 			if ( !(SandboxBridge.Instance?.IsServer ?? false) ) return;
@@ -99,7 +100,7 @@ namespace Trce.Plugins.Finance
 			OnPassGranted?.Invoke( steamId, CurrentSeason );
 		}
 
-		/// <summary> XP</summary>
+		/// <summary> 新增 XP，自動處理升級與獎勵配發 </summary>
 		public void AddXp( ulong steamId, int amount, string reason )
 		{
 			if ( !(SandboxBridge.Instance?.IsServer ?? false) ) return;
@@ -141,7 +142,7 @@ namespace Trce.Plugins.Finance
 		}
 
 		// ====================================================================
-		// (Sandbox.Services.Stats)
+		// 雲端資料同步 (Sandbox.Services.Stats)
 		// ====================================================================
 		private void SyncToCloud( ulong steamId )
 		{
@@ -167,7 +168,7 @@ namespace Trce.Plugins.Finance
 		}
 
 		/// <summary>
-		/// /   ( )
+		/// (Rpc 通訊) 客戶端通報最新進度至伺服器
 		/// </summary>
 		[Rpc.Broadcast]
 		public void ReportStatsToServer( int xp, int level )
@@ -183,7 +184,7 @@ namespace Trce.Plugins.Finance
 		}
 
 		// ====================================================================
-		//  �d�ߤ���
+		// 進度查詢
 		// ====================================================================
 		public int GetLevel( ulong steamId ) => passData.TryGetValue( steamId, out var d ) ? d.Level : 0;
 		public int GetXp( ulong steamId ) => passData.TryGetValue( steamId, out var d ) ? d.CurrentXp : 0;
@@ -195,7 +196,7 @@ namespace Trce.Plugins.Finance
 		}
 
 		// ====================================================================
-		//  �ƥ�B�z
+		// 事件監聽與發放經驗值
 		// ====================================================================
 		private void HandleRoundEnded( int roundNumber )
 		{

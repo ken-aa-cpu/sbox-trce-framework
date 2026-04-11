@@ -23,10 +23,10 @@ namespace Trce.Plugins.GameState
 	{
 		string TaskId { get; }
 		string DisplayName { get; }
-		float Weight { get; } // 權�?（影?��?�?
+		float Weight { get; } // Weight (affects task selection probability)
 		float CurrentProgress { get; } // 0~1
 		TaskState State { get; }
-		bool IsGlobal { get; } // ?�否?�全局任�?
+		bool IsGlobal { get; } // Whether this is a global task
 	}
 
 	/// <summary>

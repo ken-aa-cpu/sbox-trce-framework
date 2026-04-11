@@ -50,15 +50,15 @@ namespace Trce.Plugins.Combat
 			Scene scene )
 		{
 			var result = new HitValidationResult();
-			// 位置驗�?
+			// 位置驗?
 			float posDiff = (clientOrigin - serverPlayerPosition).Length;
 			if ( posDiff > PositionTolerance )
 			{
 				return Reject( result, shooterSteamId, "PositionMismatch",
-					$"位置?�差 {posDiff:F0} > 容差 {PositionTolerance}" );
+					$"Position delta {posDiff:F0} > tolerance {PositionTolerance}" );
 			}
 
-			// 射�??��?驗�?
+			// 射???驗?
 			if ( lastFireTime.TryGetValue( shooterSteamId, out double lastTime ) )
 			{
 				double interval = Time.NowDouble - lastTime;
@@ -66,12 +66,12 @@ namespace Trce.Plugins.Combat
 				if ( interval < minInterval )
 				{
 					return Reject( result, shooterSteamId, "FireRateTooFast",
-						$"射�??��? {interval:F3}s < ?��?{minInterval:F3}s" );
+						$"Fire interval {interval:F3}s < min {minInterval:F3}s" );
 				}
 
 			}
 			lastFireTime[shooterSteamId] = Time.NowDouble;
-			// 角度驗�?
+			// 角度驗?
 			Vector3 serverForward = serverPlayerRotation.Forward;
 			float angle = MathF.Acos( Math.Clamp(
 				Vector3.Dot( clientDirection.Normal, serverForward.Normal ), -1f, 1f ) );
@@ -79,7 +79,7 @@ namespace Trce.Plugins.Combat
 			if ( angleDeg > AngleTolerance )
 			{
 				return Reject( result, shooterSteamId, "AngleMismatch",
-					$"射�?角度?�差 {angleDeg:F1}° > 容差 {AngleTolerance}°" );
+					$"Angle delta {angleDeg:F1}° > tolerance {AngleTolerance}°" );
 			}
 
 			// Server  ?Raycast
@@ -106,13 +106,13 @@ namespace Trce.Plugins.Combat
 			result.FinalDamage = CalculateDamage( weapon, result.Distance, result.IsHeadshot );
 			ClearSuspicion( shooterSteamId );
 			Log.Info( $"[HitValidator] ? ????: {shooterSteamId} ??" +
-				$"{trace.GameObject?.Name} ({result.FinalDamage:F0} ?�害, {result.Distance:F0}m" +
-				$"{( result.IsHeadshot ? ", ?�頭!" : "" )})" );
+				$"{trace.GameObject?.Name} ({result.FinalDamage:F0} dmg, {result.Distance:F0}m" +
+				$"{( result.IsHeadshot ? ", headshot!" : "" )})" );
 			return result;
 		}
 
-		// ?��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��???
-		// ?��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��???
+		// ????????????????????????????????????????
+		// ????????????????????????????????????????
 		public static float CalculateDamage( WeaponDefinition weapon, float distance, bool isHeadshot )
 		{
 			float damage = weapon.BaseDamage;
@@ -128,9 +128,9 @@ namespace Trce.Plugins.Combat
 			return damage;
 		}
 
-		// ?��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��???
-		//  ?�常管�?
-		// ?��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��???
+		// ????????????????????????????????????????
+		//  ?常管?
+		// ????????????????????????????????????????
 		private static HitValidationResult Reject( HitValidationResult result, ulong steamId, string code, string detail )
 		{
 			result.IsValid = false;
@@ -140,7 +140,7 @@ namespace Trce.Plugins.Combat
 			suspiciousCount[steamId]++;
 			int count = suspiciousCount[steamId];
 			Log.Warning( $"[HitValidator] ? ??? ({code}): {detail}" +
-				$"[?�家: {steamId}, ?�常次數: {count}]" );
+				$"[Player: {steamId}, violations: {count}]" );
 			if ( count >= 10 )
 			{
 				Log.Error( $"[HitValidator] ?? ? {steamId} ???{count}??" );

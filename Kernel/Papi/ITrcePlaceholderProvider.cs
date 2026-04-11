@@ -2,56 +2,44 @@ namespace Trce.Kernel.Papi
 
 {
 	/// <summary>
-// ����������������������������������������������������������������������������������������������������������������������������������������
-// ��  Copyright (c) 2026 TRCE Team. All rights reserved.            ��
-// ��  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ��
+	/// Copyright (c) 2026 TRCE Team. All rights reserved.
+	/// [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.
 	///
-	/// ?��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��?
-	/// ?�� 給�?件�??�者�?使用說�?
-	/// ?��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��?
+	/// Component PAPI
+	/// %xxx%
+	/// TRCE
 	///
-	///   /  ? ?? ? ???Component ?  PAPI ? ? ? ?
-	/// /  ? ? ? ? ???%xxx%  ?? ? ?
-	///   / ? ?  TRCE ? ? ? ??
+	/// trce_* (%trce_balance%)
+	/// ext_* (%ext_pet_name%)
+	/// game_* (%game_round_count%)
 	///
-	/// / ? ? ? ?( ? ? ? ???
-	///   /   trce_*    ? ? ?? ?  ( ? %trce_balance%)
-	///   /   ext_*     ?? ? ??   ( ? %ext_pet_name%)
-	///   /   game_*   ? ? ?? ?     ( ? %game_round_count%)
+	///   public class PetSystem : Component, ITrcePlaceholderProvider
+	///       public string ProviderId => "ext_pet";
 	///
-	///   / ? ? ? ?( ? ? ? ? ?)??
-	///
-	///   /   public class PetSystem : Component, ITrcePlaceholderProvider
-	///   /       public string ProviderId => "ext_pet";
-	///
-	///   /       public string TryResolvePlaceholder(string key)
-	///   /           return key switch
-	///   /               "ext_pet_name"    => pet.Name,
-	///   /               "ext_pet_level"   => pet.Level.ToString(),
+	///       public string TryResolvePlaceholder(string key)
+	///           return key switch
+	///               "ext_pet_name"    => pet.Name,
+	///               "ext_pet_level"   => pet.Level.ToString(),
 	///               "ext_pet_hunger"  => $"{pet.Hunger}%",
-	///   /               _                 => null  // null  ? ? ?? ?key
+	///               _                 => null
 	///           };
 	///
-	///   // UI 模板?�接使用�?
-	///   // "你�?寵物 %ext_pet_name% (等�? %ext_pet_level%) �?��等�?�?
-	///
-	/// ?��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��?
+	///   // UI 模板
+	///   // "你的寵物 %ext_pet_name% (等級 %ext_pet_level%)"
 	/// </summary>
 	public interface ITrcePlaceholderProvider
 	{
 		/// <summary>
-		/// 此�?供者�??��?識別碼�??��?�?
-		///   /  ? ? xt_pluginname ? ?ext_pet? xt_quest ?
+		/// 此提供者的識別碼
 		/// </summary>
 		string ProviderId { get; }
 		/// <summary>
-		/// ?�試�???��??��?位符 Key??
-		/// /  ? ?? ? ?  Key ???<c>null</c>??
+		/// 嘗試解析佔位符 Key
+		/// 若無對應 Key 請返回 <c>null</c>
 		/// </summary>
-		/// <param name="key"> ? ? ?(  %) ? </param>
-		/// <returns> ?? ?? ? ? null ( ? ?</returns>
+		/// <param name="key">佔位符 (不含 %)</param>
+		/// <returns>解析結果，若無則返回 null</returns>
 		string TryResolvePlaceholder( string key );
 	}
 
 }
-

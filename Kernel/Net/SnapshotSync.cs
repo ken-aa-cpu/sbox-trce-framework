@@ -13,7 +13,7 @@ namespace Trce.Kernel.Net
 	public class SnapshotSync : Component
 	{
 		/// <summary> ? ? ? ( ?</summary>
-		[Property, Description( "?��?�校驗�???(�?" )]
+		[Property, Description( "Snapshot checksum key" )]
 		public float SyncIntervalSeconds { get; set; } = 10f;
 		/// <summary> ? ?? ?? ???(Server ? ?? ? ? ?</summary>
 		private string roundSecret;

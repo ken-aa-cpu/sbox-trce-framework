@@ -14,6 +14,9 @@ namespace Trce.Kernel.SRE
 	{
 		public static SreSystem Instance { get; private set; }
 
+		public System.Action OnDiagnosisStarted;
+		public System.Action<string> OnDiagnosisReceived;
+
 		private readonly ConcurrentDictionary<string, DateTime> _activePlugins = new();
 
 		public SreSystem( Scene scene ) : base( scene )

@@ -10,11 +10,10 @@ namespace Trce.Kernel.Plugin.Services
 	public enum AliveState
 	{
 		Alive,
-		Downed,    // �˦a���椤
-		Dead,      // �F��A (����)
-		Executed,  // �w�B�M (�q�`���A�ѻP�ӧ�)
-		Evacuated, // �w���\�M��
-		Spectator  // �[�Ԫ�
+		Downed,    // knocked down, incapacitated
+		Dead,      // dead (game over)
+		Executed,  // executed (usually involves other players)
+		Evacuated, // successfully evacuated
+		Spectator  // spectating
 	}
 }
-

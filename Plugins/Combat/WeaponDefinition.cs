@@ -49,53 +49,53 @@ namespace Trce.Plugins.Combat
 	/// </summary>
 	public class WeaponDefinition
 	{
-		// ���������������������� �򥻸�T ����������������������
+		//  򥻸T 
 		public string WeaponId { get; set; } = "pistol_oneshot";
-		public string DisplayName { get; set; } = "�@�o��j";
-		public string Description { get; set; } = "�M�����q�o�񪺳�o��j";
-		// ���������������������� �ˮ` ����������������������
+		public string DisplayName { get; set; } = "Default Weapon";
+		public string Description { get; set; } = "A standard weapon.";
+		//  ˮ` 
 		public float BaseDamage { get; set; } = 100f;
 		public float HeadshotMultiplier { get; set; } = 2.0f;
 		public float FalloffStart { get; set; } = 500f;
 		public float FalloffEnd { get; set; } = 2000f;
 		public float MinDamagePercent { get; set; } = 0.3f;
-		// ���������������������� �g�� ����������������������
+		//  g 
 		public float FireRate { get; set; } = 0.5f;
 		public bool IsAutomatic { get; set; } = false;
 		public int BurstCount { get; set; } = 1;
 		public float BurstDelay { get; set; } = 0.05f;
-		// ���������������������� �u�X ����������������������
+		//  uX 
 		public int MagazineSize { get; set; } = 1;
 		public int MaxReserveAmmo { get; set; } = 0;
 		public float ReloadTime { get; set; } = 2.0f;
 		public bool AutoReload { get; set; } = true;
-		// ���������������������� �u�D ����������������������
+		//  uD 
 		public float MaxRange { get; set; } = 5000f;
 		public float SpreadAngle { get; set; } = 0.5f;
 		public float SpreadIncreasePerShot { get; set; } = 0.2f;
 		public float SpreadRecoveryRate { get; set; } = 1.0f;
 		public float RecoilPitch { get; set; } = 2.0f;
 		public float RecoilYaw { get; set; } = 0.5f;
-		// ���������������������� ��ı ����������������������
+		//  ı 
 		public string ModelPath { get; set; } = "";
 		public float ModelScale { get; set; } = 1.0f;
 		public string MuzzleFlashEffect { get; set; } = "";
 		public string ImpactEffect { get; set; } = "";
 		public string TracerEffect { get; set; } = "";
 		public float TracerSpeed { get; set; } = 8000f;
-		// ���������������������� ���� ����������������������
+		//   
 		public string FireSound { get; set; } = "";
 		public string ReloadSound { get; set; } = "";
 		public string EmptySound { get; set; } = "";
 		public string EquipSound { get; set; } = "";
 		public List<AmmoType> AvailableAmmoTypes { get; set; } = new() { AmmoType.Standard };
-		// ���������������������� �w�]�Z���u�t ����������������������
+		//  w]Zut 
 		/// <summary> ( )</summary>
 		public static WeaponDefinition OneShotPistol => new()
 		{
 			WeaponId = "pistol_oneshot",
-			DisplayName = "�����j",
-			Description = "�x��w�o��A�Ȥ@�o�l�u",
+			DisplayName = "Pistol",
+			Description = "A reliable sidearm, fires one shot at a time.",
 			BaseDamage = 200f,
 			HeadshotMultiplier = 1.0f,
 			FireRate = 1.0f,
@@ -109,8 +109,8 @@ namespace Trce.Plugins.Combat
 		public static WeaponDefinition TranquilizerGun => new()
 		{
 			WeaponId = "gun_tranquilizer",
-			DisplayName = "�¾K�j",
-			Description = "�w�t�ؼ� 8 ��",
+			DisplayName = "Shotgun",
+			Description = "Pre-loaded with 8 shells.",
 			BaseDamage = 0f,
 			FireRate = 2.0f,
 			MagazineSize = 1,

@@ -2,6 +2,7 @@ using Sandbox;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Trce.Kernel.Net;
 using Trce.Plugins.Combat;
 using Trce.Plugins.Shared.Evidence;
@@ -66,9 +67,9 @@ namespace Trce.Plugins.Shared.Confrontation
 		private Trce.Kernel.Bridge.SandboxBridge _bridge;
 		private Trce.Kernel.Bridge.SandboxBridge Bridge => _bridge ??= SandboxBridge.Instance;
 
-		protected override async Task OnPluginEnabled()
+		protected override Task OnPluginEnabled()
 		{
-
+			return Task.CompletedTask;
 		}
 
 		protected override void OnFixedUpdate()
