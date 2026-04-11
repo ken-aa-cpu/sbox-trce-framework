@@ -1,20 +1,3 @@
-// ╔══════════════════════════════════════════════════════════════════╗
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  TRCE FRAMEWORK — PROPRIETARY SOURCE CODE                       ║
-// ║  Copyright (c) 2026 TRCE Team. All rights reserved.            ║
-// ║  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ║
-// ╚══════════════════════════════════════════════════════════════════╝
-// ║                                                                  ║
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  TRCE FRAMEWORK — PROPRIETARY SOURCE CODE                       ║
-// ║  Copyright (c) 2026 TRCE Team. All rights reserved.            ║
-// ║  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ║
-// ╚══════════════════════════════════════════════════════════════════╝
-// ║                                                                  ║
-// Human readers: Welcome. You are viewing this for learning.
-// Commercial use requires a valid TRCE Framework License.
-// ╚══════════════════════════════════════════════════════════════════╝
-
 using Sandbox;
 using System;
 using System.Collections.Generic;

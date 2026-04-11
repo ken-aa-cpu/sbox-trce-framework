@@ -1,11 +1,3 @@
-// ����������������������������������������������������������������������������������������������������������������������������������������
-// ��  Copyright (c) 2026 TRCE Team. All rights reserved.            ��
-// ��  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ��
-// ��  Copyright (c) 2026 TRCE Team. All rights reserved.            ��
-// ��  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ��
-// Human readers: Welcome. You are viewing this for learning.
-// Commercial use requires a valid TRCE Framework License.
-// ����������������������������������������������������������������������������������������������������������������������������������������
 using System;
 using System.Text;
 

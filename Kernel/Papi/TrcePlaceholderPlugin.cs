@@ -1,12 +1,3 @@
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  TRCE FRAMEWORK — PROPRIETARY SOURCE CODE                       ║
-// ║  Copyright (c) 2026 TRCE Team. All rights reserved.            ║
-// ║  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ║
-// ╚══════════════════════════════════════════════════════════════════╝
-// File: Code/Kernel/Papi/TrcePlaceholderPlugin.cs
-// Encoding: UTF-8 (No BOM)
-// Phase 4: PAPI 服務化重構 — IPlaceholderService 的標準實作，作為 TRCE 核心插件。
-
 using Sandbox;
 using System;
 using System.Collections.Generic;

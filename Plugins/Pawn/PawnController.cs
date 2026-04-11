@@ -4,17 +4,7 @@ using System;
 namespace Trce.Kernel.Plugin.Pawn
 
 {
-	/// <summary>
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  Copyright (c) 2026 TRCE Team. All rights reserved.            ║
-// ║  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ║
-	///
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  Copyright (c) 2026 TRCE Team. All rights reserved.            ║
-// ║  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ║
-	///   2. ?郊????
-	/// /   3. ? ?? ? ???
-	/// </summary>
+
 	public class PawnController : Component
 	{
 		[Property] public CharacterController Controller { get; set; }

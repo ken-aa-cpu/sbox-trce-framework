@@ -1,12 +1,3 @@
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  TRCE FRAMEWORK — PROPRIETARY SOURCE CODE                       ║
-// ║  Copyright (c) 2026 TRCE Team. All rights reserved.            ║
-// ║  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ║
-// ╚══════════════════════════════════════════════════════════════════╝
-// File: Code/Kernel/Papi/IPlaceholderService.cs
-// Encoding: UTF-8 (No BOM)
-// Phase 4: PAPI 服務化重構 — 純粹的服務合約介面，消除核心對具體標籤的依賴。
-
 using Sandbox;
 
 namespace Trce.Kernel.Papi

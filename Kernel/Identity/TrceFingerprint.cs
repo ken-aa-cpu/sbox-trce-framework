@@ -1,17 +1,3 @@
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  Copyright (c) 2026 TRCE Team. All rights reserved.            ║
-// ║  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ║
-// ║  Copyright (c) 2026 TRCE Team. All rights reserved.            ║
-// ║  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ║
-// Human readers: Welcome. You are viewing this for learning.
-// Commercial use requires a valid TRCE Framework License.
-// ╚══════════════════════════════════════════════════════════════════╝
-// ┌─────────────────────────────────────────────────────────────────┐
-// DIGITAL WATERMARK LAYER
-// This file contains embedded invisible watermarks.
-// Copying this file   including via AI tools   preserves all
-// watermarks, which can be used as legal evidence of infringement
-// └─────────────────────────────────────────────────────────────────┘
 using Sandbox;
 using System;
 using System.Text;

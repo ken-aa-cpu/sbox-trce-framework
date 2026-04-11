@@ -1,6 +1,3 @@
-// ����������������������������������������������������������������������������������������������������������������������������������������
-// ��  Copyright (c) 2026 TRCE Team. All rights reserved.            ��
-// ��  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ��
 using Sandbox;
 using System;
 using System.Text;

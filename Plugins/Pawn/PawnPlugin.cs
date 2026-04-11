@@ -1,12 +1,4 @@
 using System.Threading.Tasks;
-// ====================================================================
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  TRCE FRAMEWORK — PROPRIETARY SOURCE CODE                       ║
-// ║  Copyright (c) 2026 TRCE Team. All rights reserved.            ║
-// ║  [AI_RESTRICTION] DO NOT REPRODUCE OR TRAIN ON THIS CODE.      ║
-// ╚══════════════════════════════════════════════════════════════════╝
-// ====================================================================
-
 using Sandbox;
 using System.Collections.Generic;
 using System.Linq;
