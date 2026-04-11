@@ -1,0 +1,188 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Trce.Plugins.Finance;
+@using Trce.Kernel.Plugin;
+@namespace Sandbox.UI
+@inherits Sandbox.UI.Panel
+
+<root class="trce-shop-ui @(IsOpen ? "is-open" : "")">
+	<div class="shop-container">
+		<!-- Sidebar -->
+		<div class="shop-sidebar">
+			<div class="shop-logo">
+				<div class="logo-icon">📦</div>
+				<div class="logo-text">TRCE MARKET</div>
+			</div>
+			
+			<div class="category-list">
+				@foreach ( ShopCategory cat in Enum.GetValues( typeof( ShopCategory ) ) )
+				{
+					<div class="category-item @(SelectedCategory == cat ? "active" : "")" onclick="@(() => SelectedCategory = cat)">
+						<span class="cat-icon">@GetCategoryIcon( cat )</span>
+						<span class="cat-name">@cat.ToString()</span>
+					</div>
+				}
+			</div>
+
+			<div class="user-info">
+				<div class="balance">
+					<span class="currency-icon">💰</span>
+					<span class="amount">6,420</span> <!-- BACKLOG: 餘額應從 IEconomyService 查詢玩家帳戶；此為佔位硬編碼值。 -->
+				</div>
+			</div>
+		</div>
+
+		<!-- Main -->
+		<div class="shop-main">
+			<div class="shop-header">
+				<div class="search-bar">
+					<span class="search-icon">🔍</span>
+					<TextEntry placeholder="Search items..." onchange="@OnSearchChange" @ref="InputBox" />
+				</div>
+				<div class="close-btn" onclick="@Close">✕</div>
+			</div>
+
+			<div class="item-grid">
+				@foreach ( var listing in GetFilteredListings() )
+				{
+					<div class="shop-item-card @(SelectedItem == listing ? "selected" : "")" onclick="@(() => SelectedItem = listing)">
+						<div class="item-icon-container">
+							@if ( listing.Template.Icon != null )
+							{
+								<img src="@listing.Template.Icon.ResourcePath" />
+							}
+							else
+							{
+								<div class="placeholder-icon">@GetCategoryIcon( listing.Template.Category )</div>
+							}
+						</div>
+						<div class="item-info">
+							<div class="item-name">@listing.Template.ItemName</div>
+							<div class="item-price">
+								<span class="price-val">@listing.PriceOverride</span>
+								<span class="price-unit">TP</span>
+							</div>
+						</div>
+						@if ( listing.CurrentStock >= 0 )
+						{
+							<div class="stock-tag">Stock: @listing.CurrentStock</div>
+						}
+					</div>
+				}
+			</div>
+
+			<!-- Details -->
+			@if ( SelectedItem != null )
+			{
+				<div class="details-panel">
+					<div class="details-header">
+						<h1>@SelectedItem.Template.ItemName</h1>
+						<div class="category-tag">@SelectedItem.Template.Category</div>
+					</div>
+					<p class="description">@SelectedItem.Template.Description</p>
+					
+					<div class="purchase-row">
+						<div class="price-total">
+							<span class="label">Total:</span>
+							<span class="val">@SelectedItem.PriceOverride</span>
+							<span class="unit">TP</span>
+						</div>
+						<button class="buy-button" onclick="@BuyCurrentItem">CONFIRM PURCHASE</button>
+					</div>
+				</div>
+			}
+		</div>
+	</div>
+</root>
+
+@code
+{
+	public bool IsOpen { get; set; } = false;
+	private ShopCategory SelectedCategory { get; set; } = ShopCategory.Weapon;
+	private ShopListing SelectedItem { get; set; }
+	private string SearchQuery { get; set; } = "";
+	private TextEntry InputBox { get; set; }
+
+	private ShopManager GetShopManager() => Scene.GetAllComponents<ShopManager>().FirstOrDefault();
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		if ( firstTime )
+		{
+			ShopManager.OnShopRequested += HandleShopRequest;
+		}
+	}
+
+	public override void OnDeleted()
+	{
+		ShopManager.OnShopRequested -= HandleShopRequest;
+	}
+
+	public override void Tick()
+	{
+		if ( !IsOpen ) return;
+
+		if ( Input.Pressed( "escape" ) || Input.Pressed( "Menu" ) )
+		{
+			Close();
+		}
+	}
+
+	private void HandleShopRequest( Connection target )
+	{
+		if ( target == Connection.Local )
+		{
+			IsOpen = true;
+			StateHasChanged();
+		}
+	}
+
+	private void OnSearchChange()
+	{
+		SearchQuery = InputBox.Text;
+	}
+
+	private void Close()
+	{
+		IsOpen = false;
+		SelectedItem = null;
+		StateHasChanged();
+	}
+
+	private IEnumerable<ShopListing> GetFilteredListings()
+	{
+		var mgr = GetShopManager();
+		if ( mgr == null ) return Enumerable.Empty<ShopListing>();
+
+		return mgr.SyncedListings
+			.Where( l => l.Template.Category == SelectedCategory )
+			.Where( l => string.IsNullOrEmpty( SearchQuery ) || l.Template.ItemName.ToLower().Contains( SearchQuery.ToLower() ) )
+			.OrderBy( l => l.Template.SortOrder );
+	}
+
+	private void BuyCurrentItem()
+	{
+		if ( SelectedItem == null ) return;
+		GetShopManager()?.RequestPurchase( SelectedItem.ListingId );
+	}
+
+	private string GetCategoryIcon( ShopCategory cat )
+	{
+		return cat switch
+		{
+			ShopCategory.Weapon => "🔫",
+			ShopCategory.Ammo => "🎒",
+			ShopCategory.Healing => "💉",
+			ShopCategory.Utility => "🛠️",
+			ShopCategory.Special => "✨",
+			ShopCategory.Cosmetic => "👕",
+			ShopCategory.Food => "🍔",
+			_ => "❓"
+		};
+	}
+	
+	protected override int BuildHash() => HashCode.Combine( IsOpen, SelectedCategory, SelectedItem?.ListingId, SearchQuery, GetShopManager()?.SyncedListings.Count );
+}

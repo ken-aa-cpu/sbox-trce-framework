@@ -1,0 +1,113 @@
+﻿.trce-player-marker-ui {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 600px;
+    height: 300px;
+    font-family: 'Outfit', sans-serif;
+    pointer-events: none;
+
+    // ???A: ?? (暺?)
+    .marker-dot {
+        width: 12px;
+        height: 12px;
+        background-color: white;
+        border-radius: 50%;
+        border: 4px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        transition: transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.2s;
+        z-index: 10;
+    }
+
+    // ???B: ?迂
+    .marker-content {
+        position: absolute;
+        top: 140px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: all 0.2s ease;
+
+        .team-tag {
+            font-size: 14px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            background-color: rgba(0, 0, 0, 0.4);
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+        }
+
+        .player-name {
+            font-size: 32px;
+            font-weight: 800;
+            text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.8);
+            white-space: nowrap;
+        }
+    }
+
+    // ???C: 擃漁??
+    .marker-focus-ring {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border: 2px solid white;
+        border-radius: 50%;
+        opacity: 0;
+        transform: scale(0.5);
+        transition: all 0.15s ease-out;
+    }
+
+    // --- ?????頛?---
+
+    // 1. ???????＊蝷箏?摮?
+    &.is-near,
+    &.is-focused {
+        .marker-dot {
+            transform: scale(0.5);
+            opacity: 0.5;
+        }
+
+        .marker-content {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    // 2. ???撥??閬?(???C)
+    &.is-focused {
+        .marker-dot {
+            transform: scale(0.2);
+            opacity: 0;
+        }
+
+        .marker-focus-ring {
+            opacity: 1;
+            transform: scale(3.5);
+            box-shadow: 0 0 15px currentColor;
+            animation: pulse-ring 1s infinite alternate;
+        }
+
+        .player-name {
+            transform: scale(1.2);
+            text-shadow: 0px 0px 10px currentColor;
+        }
+    }
+}
+
+@keyframes pulse-ring {
+    from {
+        opacity: 1;
+        transform: scale(3.5);
+    }
+
+    to {
+        opacity: 0.5;
+        transform: scale(4.5);
+    }
+}

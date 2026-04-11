@@ -1,0 +1,200 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@using System;
+@using System.Linq;
+@using System.Collections.Generic;
+@using Trce.Kernel.Papi;
+@using Trce.Kernel.Net;
+@using Trce.Plugins.Shared.Teams;
+@using Trce.Plugins.Shared.Input;
+@using Trce.Kernel.Localization;
+@using Trce.Kernel.Bridge;
+@namespace Sandbox.UI
+@inherits Sandbox.UI.Panel
+
+<root class="team-list-overlay @(ShowTeamOverlay ? "visible" : "")">
+	<div class="team-container">
+		@{
+			var bridge = Bridge;
+			var manager = bridge?.FindComponent<TrceTeamManager>();
+			var team = manager?.GetPlayerTeam( bridge?.LocalSteamId ?? 0ul );
+		}
+		<div class="team-header">
+			<span class="title">?儭?@(L10n?.Translate("ui_team_title") ?? "TEAM INFO")</span>
+			<span class="team-name">@PlaceholderAPI.Replace( GameObject, "%teams_my_name%" )</span>
+		</div>
+		
+		<div class="member-list">
+			@if ( team != null )
+			{
+				foreach ( var member in team.Members )
+				{
+					<div class="member-item">
+						<span class="status-dot @(member.SteamId == team.LeaderId ? "leader" : "")"></span>
+						<span class="name">@member.Name</span>
+						@if ( member.SteamId == team.LeaderId )
+						{
+							<span class="badge">@(L10n?.Translate("ui_team_leader") ?? "Leader")</span>
+						}
+					</div>
+				}
+			}
+			else
+			{
+				<div class="empty-msg">@(L10n?.Translate("ui_team_empty") ?? "No team joined")</div>
+			}
+		</div>
+
+		<div class="team-footer">
+			@(L10n?.Translate("ui_team_members") ?? "Members"): @(team?.Members?.Count ?? 0)
+		</div>
+	</div>
+</root>
+
+<style>
+.team-list-overlay {
+	position: absolute;
+	right: 20px;
+	top: 150px;
+	width: 250px;
+	background-color: rgba(0, 0, 0, 0.85);
+	border-left: 4px solid #3498db;
+	backdrop-filter: blur(10px);
+	border-radius: 4px;
+	padding: 15px;
+	color: white;
+	opacity: 0;
+	transform: translateX(50px);
+	transition: all 0.3s ease-out;
+	pointer-events: none;
+}
+
+.team-list-overlay.visible {
+	opacity: 1;
+	transform: translateX(0);
+	pointer-events: all;
+}
+
+.team-header {
+	display: flex;
+	flex-direction: column;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	padding-bottom: 10px;
+	margin-bottom: 10px;
+}
+
+.team-header .title {
+	font-size: 12px;
+	text-transform: uppercase;
+	color: #bdc3c7;
+}
+
+.team-header .team-name {
+	font-size: 20px;
+	font-weight: bold;
+	color: #3498db;
+}
+
+.member-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.member-item {
+	display: flex;
+	align-items: center;
+	padding: 5px;
+	background-color: rgba(255, 255, 255, 0.05);
+	border-radius: 3px;
+}
+
+.status-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #2ecc71;
+	margin-right: 10px;
+}
+
+.status-dot.leader {
+	background: #f1c40f;
+	box-shadow: 0 0 5px #f1c40f;
+}
+
+.member-item .name {
+	flex: 1;
+	font-size: 14px;
+}
+
+.badge {
+	font-size: 10px;
+	background: #f1c40f;
+	color: black;
+	padding: 1px 4px;
+	border-radius: 2px;
+	font-weight: bold;
+}
+
+.empty-msg {
+	color: #7f8c8d;
+	font-style: italic;
+	font-size: 13px;
+	text-align: center;
+	padding: 10px;
+}
+
+.team-footer {
+	margin-top: 15px;
+	font-size: 12px;
+	color: #bdc3c7;
+	text-align: right;
+}
+</style>
+
+@code {
+	public bool ShowTeamOverlay { get; set; } = false;
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		var input = InputManager;
+		if ( firstTime && input != null )
+		{
+			input.OnUiToggleRequested += HandleUiToggle;
+		}
+	}
+
+	public override void OnDeleted()
+	{
+		var input = InputManager;
+		if ( input != null )
+		{
+			input.OnUiToggleRequested -= HandleUiToggle;
+		}
+	}
+
+	private void HandleUiToggle( string panelId )
+	{
+		if ( panelId == "team" )
+		{
+			ShowTeamOverlay = !ShowTeamOverlay;
+			StateHasChanged();
+		}
+	}
+
+	private LocalizationManager _l10n;
+	private SandboxBridge _bridge;
+	private TrceInputManager _inputManager;
+
+	private LocalizationManager L10n => _l10n ??= Scene.Get<LocalizationManager>();
+	private SandboxBridge Bridge => _bridge ??= Scene.Get<SandboxBridge>();
+	private TrceInputManager InputManager => _inputManager ??= Scene.Get<TrceInputManager>();
+
+	protected override int BuildHash()
+	{
+		var bridge = Bridge;
+		var manager = bridge?.FindComponent<TrceTeamManager>();
+		var team = manager?.GetPlayerTeam( bridge?.LocalSteamId ?? 0ul );
+		return HashCode.Combine( ShowTeamOverlay, team?.Members?.Count, team?.LeaderId );
+	}
+}

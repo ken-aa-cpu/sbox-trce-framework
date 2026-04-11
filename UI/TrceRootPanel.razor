@@ -1,0 +1,202 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System;
+@using Trce.Plugins.GameState;
+@using Trce.Kernel.Papi;
+@using Trce.Kernel.Event;
+
+@namespace Sandbox.UI
+@inherits Sandbox.PanelComponent
+@implements IDisposable
+@attribute [Title( "Trce Root Panel" )]
+@attribute [Icon( "dashboard" )]
+
+<root class="trce-root">
+	<div style="position: absolute; top: 10px; left: 10px; z-index: 10000; pointer-events: all;">
+		<div style="font-size: 10px; color: #ff00ff; border: 1px solid #ff00ff; padding: 4px; cursor: pointer;" onclick="@(() => Guardian?.ToggleVisibility())">
+			[ADMIN UI TOGGLE]
+		</div>
+	</div>
+
+	<div class="hud-top">
+		<div class="phase-info">
+			@{ 
+				string phaseName = GetPhaseName();
+			}
+			<span class="phase-name">@phaseName</span>
+			<span class="phase-time">@(GetTimeRemaining() ?? "00:00")</span>
+		</div>
+		
+		<div class="papi-stats">
+			<div class="stat">
+				<span class="label">Task</span>
+				<span class="value">TASK</span>
+			</div>
+		</div>
+	</div>
+
+	<div class="hud-bottom">
+		<div class="player-stats">
+			<div class="stat-row">TRCE System Online | HP: @Math.Round(LocalHealth) | Tags: @ActiveTagsCount</div>
+		</div>
+	</div>
+
+	<TrceTeamList />
+	<TrceShopUI />
+	<TrceWeaponHud />
+	<TrceInteractionHud />
+	<TrceChatBox @ref="ChatBox" />
+	<SreGuardianPanel @ref="Guardian" />
+
+	@if ( PhaseManager?.CurrentPhase == GamePhase.Confrontation )
+	{
+		<div class="confrontation-overlay">
+			<h1>Confrontation</h1>
+			<p>Find the killer...</p>
+		</div>
+	}
+	
+	@if ( PhaseManager?.CurrentPhase == GamePhase.HuntPhase )
+	{
+		<div class="hunt-overlay">
+			<div class="warning-strip"></div>
+			<h1>HUNT</h1>
+			<h2>@GetTimeRemaining()</h2>
+			<div class="warning-strip"></div>
+		</div>
+	}
+</root>
+
+@code {
+	public TrceChatBox ChatBox { get; set; }
+	public SreGuardianPanel Guardian { get; set; }
+
+	// 本地變數：由事件驅動更新
+	private float LocalHealth = 100f;
+	private int ActiveTagsCount = 0;
+	private bool _eventsSubscribed = false;
+
+	protected override void OnTreeFirstBuilt()
+	{
+		base.OnTreeFirstBuilt();
+
+		if ( !_eventsSubscribed )
+		{
+			GlobalEventBus.Subscribe<CoreEvents.AttributeChangedEvent>( OnAttributeChanged );
+			GlobalEventBus.Subscribe<CoreEvents.TagAddedEvent>( OnTagAdded );
+			GlobalEventBus.Subscribe<CoreEvents.TagRemovedEvent>( OnTagRemoved );
+			_eventsSubscribed = true;
+		}
+	}
+
+	public void Dispose()
+	{
+		if ( _eventsSubscribed )
+		{
+			GlobalEventBus.Unsubscribe<CoreEvents.AttributeChangedEvent>( OnAttributeChanged );
+			GlobalEventBus.Unsubscribe<CoreEvents.TagAddedEvent>( OnTagAdded );
+			GlobalEventBus.Unsubscribe<CoreEvents.TagRemovedEvent>( OnTagRemoved );
+			_eventsSubscribed = false;
+		}
+	}
+
+	private void OnAttributeChanged( CoreEvents.AttributeChangedEvent e )
+	{
+		// 確認是否為本地玩家的更新事件
+		if ( Connection.Local == null || e.SteamId != Connection.Local.SteamId ) 
+			return;
+
+		if ( e.AttrId == "player.health" )
+		{
+			LocalHealth = e.NewValue;
+			// 確保邏輯是在 UI 執行緒 (Main Thread) 上安全執行
+			StateHasChanged();
+		}
+	}
+
+	private void OnTagAdded( CoreEvents.TagAddedEvent e )
+	{
+		// 檢查目標物件是否屬於本地玩家
+		if ( e.Target != null && e.Target.Network.IsOwner )
+		{
+			ActiveTagsCount++;
+			StateHasChanged();
+		}
+	}
+
+	private void OnTagRemoved( CoreEvents.TagRemovedEvent e )
+	{
+		if ( e.Target != null && e.Target.Network.IsOwner )
+		{
+			ActiveTagsCount = Math.Max( 0, ActiveTagsCount - 1 );
+			StateHasChanged();
+		}
+	}
+
+	protected override void OnStart()
+	{
+		Log.Info( "TRCE: TrceRootPanel v1.6 [PRODUCTION_MODE - Event Driven]" );
+		
+		var screenPanel = GameObject.Components.Get<ScreenPanel>();
+		if ( screenPanel == null )
+		{
+			Log.Error( "[TRCE UI ERROR] ScreenPanel not found!" );
+		}
+		else
+		{
+			screenPanel.Opacity = 1f; 
+		}
+	}
+
+	protected override void OnUpdate()
+	{
+		// 清除硬編碼：不再使用 Input.Keyboard.Pressed("F11")，改用官方 Input 系統註冊的按鍵
+		if ( Input.Pressed( "trce_admin_menu" ) )
+		{
+			Guardian?.ToggleVisibility();
+		}
+
+		if ( Input.Pressed( "chat" ) || Input.Pressed( "enter" ) )
+		{
+			ChatBox?.OpenChat();
+		}
+	}
+
+	private GamePhaseManager _phaseManager;
+	private GamePhaseManager PhaseManager 
+	{
+		get
+		{
+			if ( _phaseManager == null ) _phaseManager = Scene.Get<GamePhaseManager>();
+			return _phaseManager;
+		}
+	}
+
+	private string GetPhaseName()
+	{
+		if ( PhaseManager == null ) return "Unknown";
+		
+		return PhaseManager.CurrentPhase switch
+		{
+			GamePhase.Lobby => "Lobby",
+			GamePhase.Intro => "Intro",
+			GamePhase.TaskPhase => "Task Phase",
+			GamePhase.Confrontation => "Confrontation",
+			GamePhase.ArmoryUnlocked => "Armory Unlocked",
+			GamePhase.HuntPhase => "Hunt Phase",
+			GamePhase.EndRound => "Round End",
+			_ => "Unknown Phase"
+		};
+	}
+
+	private string GetTimeRemaining()
+	{
+		if ( PhaseManager == null ) return "--:--";
+		float time = PhaseManager.GetTimeRemaining();
+		if ( time > 9000f ) return "∞";
+		
+		int mins = (int)time / 60;
+		int secs = (int)time % 60;
+		return $"{mins:00}:{secs:00}";
+	}
+}

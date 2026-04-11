@@ -1,0 +1,30 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+@namespace Sandbox.UI
+@using System;
+
+<root class="trce-player-marker-ui @(Marker?.IsFocused ?? false ? "is-focused" : "") @(Distance < 300 ? "is-near" : "")">
+	<!-- ?? Dot (銝挾撘????A) -->
+	<div class="marker-dot" style="background-color: @Marker.TeamColor.Hex; border-color: @Marker.TeamColor.WithAlpha(0.4f).Hex"></div>
+
+	<!-- ?迂 Name (銝挾撘????B) -->
+	<div class="marker-content">
+		@if ( !string.IsNullOrEmpty( Marker.TeamName ) )
+		{
+			<span class="team-tag" style="color: @Marker.TeamColor.Hex">@Marker.TeamName</span>
+		}
+		<span class="player-name" style="color: @Marker.TeamColor.Hex">@Marker.GetDisplayName()</span>
+	</div>
+
+	<!-- 擃漁 Focus (銝挾撘????C) -->
+	<div class="marker-focus-ring" style="border-color: @Marker.TeamColor.Hex"></div>
+</root>
+
+@code
+{
+	[Property] public TrcePlayerMarker Marker { get; set; }
+	private float Distance => Marker != null ? (Marker.Scene.Camera.WorldPosition - Marker.TargetPlayer.WorldPosition).Length : 0;
+
+	protected override int BuildHash() => HashCode.Combine( Marker?.IsFocused ?? false, (int)Distance / 100, Marker?.TeamColor ?? Color.White );
+}

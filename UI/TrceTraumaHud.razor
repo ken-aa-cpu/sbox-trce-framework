@@ -1,0 +1,152 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Trce.Kernel.Event;
+@using static Trce.Kernel.Event.CoreEvents;
+@using System;
+@namespace Sandbox.UI
+@inherits Sandbox.UI.Panel
+
+<root style="opacity: @_flashAlpha;">
+	<style>
+		TrceTraumaHud {
+			position: absolute;
+			inset: 0;
+			pointer-events: none;
+			background: radial-gradient(circle, transparent 40%, rgba(200, 0, 0, 0.4) 100%);
+			z-index: 999;
+		}
+	</style>
+</root>
+
+@code
+{
+	/// <summary>
+	/// 控制紅色邊緣泛光的透明度 (0-1)。
+	/// </summary>
+	private float _flashAlpha = 0f;
+
+	/// <summary>
+	/// 快取本地玩家的事件總線。
+	/// </summary>
+	private EntityEventBus _localBus;
+
+	/// <summary>
+	/// 受傷事件的處理委派快取，避免每幀或每次訂閱時產生 GC。
+	/// </summary>
+	private System.Action<PlayerDamagedEvent> _onPlayerDamaged;
+
+	// ─────────────────────────────────────────────────────────────────
+	//  生命週期
+	// ─────────────────────────────────────────────────────────────────
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		if ( !firstTime ) return;
+
+		// 快取委派實例
+		_onPlayerDamaged = OnPlayerDamaged;
+
+		// 嘗試訂閱本地玩家
+		TrySubscribeToLocalPlayer();
+	}
+
+	public override void OnDeleted()
+	{
+		UnsubscribeFromBus();
+		base.OnDeleted();
+	}
+
+	// ─────────────────────────────────────────────────────────────────
+	//  訂閱管理
+	// ─────────────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// 搜尋並訂閱本地玩家身上的 EntityEventBus。
+	/// </summary>
+	private void TrySubscribeToLocalPlayer()
+	{
+		if ( Sandbox.Game.ActiveScene == null || Connection.Local == null ) return;
+
+		// 遍歷場景中的所有 Bus，找到屬於本地玩家的那一個
+		foreach ( var bus in Sandbox.Game.ActiveScene.GetAllComponents<EntityEventBus>() )
+		{
+			if ( bus.Network.Owner?.SteamId == Connection.Local.SteamId )
+			{
+				_localBus = bus;
+				break;
+			}
+		}
+
+		if ( _localBus == null ) return;
+
+		// 訂閱受傷事件
+		_localBus.Subscribe( _onPlayerDamaged );
+	}
+
+	/// <summary>
+	/// 取消訂閱，防止洩漏或呼叫到已銷毀的異體。
+	/// </summary>
+	private void UnsubscribeFromBus()
+	{
+		if ( _localBus == null ) return;
+		
+		_localBus.Unsubscribe( _onPlayerDamaged );
+		_localBus = null;
+	}
+
+	// ─────────────────────────────────────────────────────────────────
+	//  邏輯處理
+	// ─────────────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// 當玩家受到傷害時，增加 Alpha 值。
+	/// </summary>
+	private void OnPlayerDamaged( PlayerDamagedEvent e )
+	{
+		// 根據傷害量增加透明度，例如 20 點傷害增加 0.4 Alpha
+		_flashAlpha = Math.Clamp( _flashAlpha + e.DamageAmount * 0.02f, 0f, 1f );
+		
+		// 立即觸發重新渲染以顯示紅色效果
+		StateHasChanged();
+	}
+
+	/// <summary>
+	/// 每幀更新透明度衰減。
+	/// </summary>
+	public override void Tick()
+	{
+		if ( _flashAlpha <= 0f ) 
+		{
+			// 若目前沒有 Bus 且場景已就緒，可在此嘗試重新找尋（例如剛重生時）
+			if ( _localBus == null && Sandbox.Game.ActiveScene != null )
+			{
+				TrySubscribeToLocalPlayer();
+			}
+			return;
+		}
+
+		// 使用 Lerp 讓透明度平滑衰減回 0
+		// 衰減速度為每秒約 2.5 倍
+		_flashAlpha = MathX.Lerp( _flashAlpha, 0f, Time.Delta * 2.5f );
+
+		// 最小門檻防止無限趨近
+		if ( _flashAlpha < 0.001f )
+		{
+			_flashAlpha = 0f;
+			StateHasChanged(); // 最後歸零時強制更新一次以確保 UI 隱藏
+			return;
+		}
+
+		// 為了效能，只有在變化較明顯時才觸發重新渲染
+		if ( _flashAlpha > 0.01f )
+		{
+			StateHasChanged();
+		}
+	}
+
+	/// <summary>
+	/// 停用 Blazor 框架自動輪詢，節省 CPU 開銷。
+	/// 所有渲染皆由 Tick 中的 StateHasChanged() 精確控制。
+	/// </summary>
+	protected override int BuildHash() => 0;
+}

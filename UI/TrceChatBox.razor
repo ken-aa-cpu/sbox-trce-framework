@@ -1,0 +1,457 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System.Collections.Generic;
+@using System;
+@using Trce.Plugins.Social;
+@using Trce.Plugins.Combat;
+@using Trce.Kernel.Plugin;
+@using Trce.Kernel.Command;
+@using Trce.Plugins.Shared.Teams;
+@using System.Linq;
+@using Trce.Kernel.Localization;
+@using Trce.Kernel.Bridge;
+@namespace Sandbox.UI
+@inherits Sandbox.UI.Panel
+
+<root class="trce-chat-box @(IsTyping ? "is-typing" : "")" style="@BoxStyle">
+	<!-- 標題列 (僅打字時顯示，用於拖拽) -->
+	<div class="chat-header" onmousedown="@OnHeaderMouseDown">
+		<div class="status-dot"></div>
+		<div class="title">@(L10n?.Translate("ui_chat_terminal_title") ?? "TRCE Communication Terminal")</div>
+		<div class="drag-icon">??</div>
+	</div>
+
+	<div class="chat-messages" @ref="ChatContainer">
+		@if ( _chatManager != null )
+		{
+			@foreach ( var msg in GetVisibleMessages() )
+			{
+				var team = _teamManager?.GetPlayerTeam( msg.SenderSteamId );
+				var teamColor = team?.TeamColor ?? Color.Gray; 
+				
+				playerNameCache.TryGetValue( msg.SenderSteamId, out var displayName );
+				displayName ??= "Unknown Player";
+				
+				<div class="chat-entry @(msg.IsSystemMessage ? "is-system" : "")">
+					@if ( !msg.IsSystemMessage )
+					{
+						@if ( team != null )
+						{
+							<span class="msg-team-tag" style="color: @teamColor.Hex; border: 1px solid @teamColor.WithAlpha(0.3f).Hex">@team.Name</span>
+						}
+						<span class="msg-name" style="color: @teamColor.Hex">@displayName</span>
+					}
+					
+					<div class="msg-content">
+						@foreach( var span in TrceColorParser.Parse( msg.Content, Color.White ) )
+						{
+							<span style="color: @(span.Color.HasValue ? span.Color.Value.Hex : "#ffffff"); font-weight: @(span.IsBold ? "bold" : "normal")">@span.Text</span>
+						}
+					</div>
+				</div>
+			}
+		}
+	</div>
+	
+	@*
+	<!-- 指令建議選單 -->
+	@if ( IsTyping && IsCommandInput && filteredSuggestions.Count > 0 )
+	{
+		<div class="command-suggestions">
+			@for ( int i = 0; i < filteredSuggestions.Count; i++ )
+			{
+				var suggestion = filteredSuggestions[i];
+				<div class="suggestion-item @(i == selectedSuggestionIndex ? "active" : "")">
+					<span class="cmd-key">/@suggestion.Name</span>
+					<span class="cmd-args">@string.Join( " ", suggestion.Args )</span>
+					<span class="cmd-desc">@suggestion.Description</span>
+				</div>
+			}
+		</div>
+	}
+	*@
+
+	<div class="chat-input-row">
+		<div class="prefix">@(IsCommandInput ? "/" : ">")</div>
+		<TextEntry @ref="InputBox" 
+				   onchange="@OnInputChange"
+				   oninput="@OnInputUpdate"
+				   onsubmit="@OnSubmit" 
+				   placeholder="@(L10n?.Translate("ui_chat_placeholder") ?? "Enter message...")" />
+	</div>
+
+	<!-- 縮放按鈕 -->
+	<div class="resize-handle" onmousedown="@OnResizeMouseDown"></div>
+</root>
+
+@code
+{
+	[Property] public string ToggleKey { get; set; } = "chat";
+	
+	private ChatManager _chatManagerCache;
+	private TrceTeamManager _teamManagerCache;
+	private DeathManager _deathManagerCache;
+	private LocalizationManager _l10n;
+	private SandboxBridge _bridge;
+	private TrceCommandManager _commandManager;
+
+	private ChatManager GetChatManager() => _chatManagerCache ??= Scene.GetAllComponents<ChatManager>().FirstOrDefault();
+	private TrceTeamManager GetTeamManager() => _teamManagerCache ??= Scene.GetAllComponents<TrceTeamManager>().FirstOrDefault();
+	private DeathManager GetDeathManager() => _deathManagerCache ??= Scene.GetAllComponents<DeathManager>().FirstOrDefault();
+	private LocalizationManager L10n => _l10n ??= Scene.Get<LocalizationManager>();
+	private SandboxBridge Bridge => _bridge ??= Scene.Get<SandboxBridge>();
+	private TrceCommandManager CommandManager => _commandManager ??= Scene.Get<TrceCommandManager>();
+
+	public Panel ChatContainer { get; set; }
+	public TextEntry InputBox { get; set; }
+	public bool IsTyping { get; set; } = false;
+
+	// 視窗屬性
+	private float posX = 50, posY = 50;
+	private float width = 550, height = 400;
+	private bool isDragging = false;
+	private bool isResizing = false;
+	private Vector2 dragOffset;
+
+	private string BoxStyle => $"left: {posX}px; bottom: {posY}px; width: {width}px; height: {height}px;";
+
+	// 指令補全屬性
+	private bool IsCommandInput => InputBox?.Text?.StartsWith("/") ?? false;
+	private List<TrceCommandManager.CommandInfo> filteredSuggestions = new();
+	private int selectedSuggestionIndex = 0;
+	
+	private bool isTypingArgument = false;
+	private string currentTargetCmd = "";
+	private int currentArgIndex = 0;
+	protected override async void OnAfterTreeRender( bool firstTime )
+	{
+		if ( firstTime )
+		{
+			Log.Info( "[Chat] TrceChatBox 已成功掛載到 UI 樹！" );
+			if ( Bridge != null )
+			{
+				try
+				{
+					var settings = await Bridge.LoadData<ChatSettings>( "chat_settings.json" );
+					if ( settings != null )
+					{
+						posX = settings.X;
+						posY = settings.Y;
+						width = settings.Width;
+						height = settings.Height;
+						StateHasChanged();
+					}
+				}
+				catch (Exception ex)
+				{
+					Log.Error($"[Chat] LoadData failed: {ex.Message}");
+				}
+			}
+
+			// 註冊參數建議回呼
+			// TrceCommandManager.OnArgSuggestionsReceived += HandleArgSuggestions;
+			LocalizationManager.OnLanguageChanged += StateHasChanged;
+		}
+	}
+
+	public override void OnDeleted()
+	{
+		// TrceCommandManager.OnArgSuggestionsReceived -= HandleArgSuggestions;
+		LocalizationManager.OnLanguageChanged -= StateHasChanged;
+	}
+
+	private void HandleArgSuggestions( string cmd, int index, List<string> suggestions )
+	{
+		if ( !isTypingArgument || currentTargetCmd != cmd || currentArgIndex != index ) return;
+
+		filteredSuggestions = suggestions.Select( s => new TrceCommandManager.CommandInfo { 
+			Name = s, 
+			Description = "參數建議" 
+		}).ToList();
+		
+		selectedSuggestionIndex = 0;
+		StateHasChanged();
+	}
+
+	private Dictionary<ulong, string> playerNameCache = new();
+	private TrceTeamManager _teamManager;
+	private ChatManager _chatManager;
+	private DeathManager _deathManager;
+
+	private List<ChatMessage> GetVisibleMessages()
+	{
+		_chatManager ??= Scene.Get<ChatManager>();
+		_teamManager ??= Scene.Get<TrceTeamManager>();
+		_deathManager ??= Scene.Get<DeathManager>();
+
+		if ( _chatManager == null ) 
+		{
+			return IsTyping ? new List<ChatMessage> { new ChatMessage { Content = L10n?.Translate("ui_chat_no_manager") ?? "&c⚠️ ChatManager component not found.", StyleId = "system" } } : new List<ChatMessage>();
+		}
+		
+		var all = _chatManager.GetRecentMessages( 50 );
+		bool isLocalGhost = _deathManager?.IsGhost( Connection.Local?.SteamId ?? 0ul ) ?? false;
+
+		// 預先填充名稱緩存，避免在迴圈內查找
+		foreach ( var msg in all )
+		{
+			if ( !playerNameCache.ContainsKey( msg.SenderSteamId ) )
+			{
+				var conn = Bridge?.FindConnectionBySteamId( msg.SenderSteamId );
+				playerNameCache[msg.SenderSteamId] = conn?.DisplayName ?? L10n?.Translate("ui_chat_unknown_user") ?? "Unknown Player";
+			}
+		}
+
+		return all.Where( m => m.Channel != ChatChannel.Ghost || isLocalGhost ).ToList();
+	}
+	
+	public override void Tick()
+	{
+		if ( IsTyping )
+		{
+			HandleWindowMovement();
+			HandleSuggestionNavigation();
+
+			if ( Input.Pressed( "escape" ) )
+			{
+				CloseChat();
+			}
+		}
+	}
+
+	public async void OpenChat()
+	{
+		if ( IsTyping ) return;
+
+		IsTyping = true;
+		StateHasChanged();
+		
+		try
+		{
+			// 確保這時候輸入框已經被渲染出來
+			await Task.Delay( 100 );
+			
+			if ( InputBox != null )
+			{
+				InputBox.Focus();
+				InputBox.Text = ""; // 清空舊文本
+			}
+
+			// CommandManager?.GetAvailableCommands();
+		}
+		catch (Exception ex)
+		{
+			Log.Error($"[Chat] OpenChat failed: {ex.Message}");
+		}
+	}
+
+	private async void HandleWindowMovement()
+	{
+		if ( isDragging )
+		{
+			if ( Input.Down( "attack1" ) )
+			{
+				posX = Mouse.Position.x - dragOffset.x;
+				posY = Screen.Height - Mouse.Position.y - dragOffset.y; // 底部對齊
+				StateHasChanged();
+			}
+			else
+			{
+				isDragging = false; 
+				if ( Bridge != null )
+				{
+					try
+					{
+						await Bridge.SaveData( "chat_settings.json", new ChatSettings { X = posX, Y = posY, Width = width, Height = height } );
+					}
+					catch (Exception ex)
+					{
+						Log.Error($"[Chat] SaveData failed: {ex.Message}");
+					}
+				}
+			}
+		}
+
+		if ( isResizing )
+		{
+			if ( Input.Down( "attack1" ) )
+			{
+				width = Math.Max( 400, Mouse.Position.x - posX );
+				height = Math.Max( 250, (Screen.Height - Mouse.Position.y) - posY );
+				StateHasChanged();
+			}
+			else
+			{
+				isResizing = false; 
+				if ( Bridge != null )
+				{
+					try
+					{
+						await Bridge.SaveData( "chat_settings.json", new ChatSettings { X = posX, Y = posY, Width = width, Height = height } );
+					}
+					catch (Exception ex)
+					{
+						Log.Error($"[Chat] SaveData failed: {ex.Message}");
+					}
+				}
+			}
+		}
+	}
+
+	private void HandleSuggestionNavigation()
+	{
+		if ( !IsCommandInput || filteredSuggestions.Count == 0 ) return;
+
+		if ( Input.Pressed( "slot_next" ) || Input.Pressed( "tab" ) ) // 下一個
+		{
+			selectedSuggestionIndex = (selectedSuggestionIndex + 1) % filteredSuggestions.Count;
+			StateHasChanged();
+		}
+		else if ( Input.Pressed( "slot_prev" ) ) // 上一個
+		{
+			selectedSuggestionIndex = (selectedSuggestionIndex - 1 + filteredSuggestions.Count) % filteredSuggestions.Count;
+			StateHasChanged();
+		}
+	}
+
+	private void OnHeaderMouseDown()
+	{
+		isDragging = true;
+		dragOffset = new Vector2( Mouse.Position.x - posX, Screen.Height - Mouse.Position.y - posY );
+	}
+
+	private void OnResizeMouseDown()
+	{
+		isResizing = true;
+	}
+
+	private void OnInputChange()
+	{
+		UpdateSuggestions();
+	}
+
+	private void OnInputUpdate()
+	{
+		// 實時更新建議
+		UpdateSuggestions();
+	}
+
+	private void UpdateSuggestions()
+	{
+		if ( !IsCommandInput )
+		{
+			filteredSuggestions.Clear();
+			isTypingArgument = false;
+			return;
+		}
+
+		string text = InputBox.Text.Substring( 1 );
+		string[] parts = text.Split( ' ' );
+		
+		if ( parts.Length == 1 )
+		{
+			// 打指令名
+			isTypingArgument = false;
+			string search = parts[0].ToLower();
+			// var cmds = CommandManager?.Commands ?? Enumerable.Empty<TrceCommandManager.CommandInfo>();
+			var cmds = Enumerable.Empty<TrceCommandManager.CommandInfo>();
+			filteredSuggestions = cmds
+				.Where( c => c.Name.Contains( search ) )
+				.OrderBy( c => c.Name.StartsWith( search ) ? 0 : 1 )
+				.Take( 10 )
+				.ToList();
+			selectedSuggestionIndex = 0;
+		}
+		else
+		{
+			// 打參數中
+			isTypingArgument = true;
+			currentTargetCmd = parts[0];
+			currentArgIndex = parts.Length - 2; // 第一個參數 index 為 0
+			string currentArgText = parts.Last();
+
+			// 請求服務端提供建議
+			// CommandManager?.RequestArgSuggestions( currentTargetCmd, currentArgIndex, parts.SkipLast( 1 ).ToArray() );
+			
+			// 先過濾現有的 (優化體驗)
+			filteredSuggestions = filteredSuggestions
+				.Where( s => s.Name.ToLower().Contains( currentArgText.ToLower() ) )
+				.ToList();
+		}
+	}
+
+	private void OnSubmit()
+	{
+		// 如果選單開著且有選擇項目
+		if ( IsCommandInput && filteredSuggestions.Count > 0 && selectedSuggestionIndex >= 0 )
+		{
+			var chosen = filteredSuggestions[selectedSuggestionIndex];
+			string text = InputBox.Text;
+			
+			if ( !isTypingArgument )
+			{
+				// 補全指令名
+				InputBox.Text = "/" + chosen.Name + " ";
+			}
+			else
+			{
+				// 補全參數
+				var parts = text.Split( ' ' ).ToList();
+				parts[parts.Count - 1] = chosen.Name;
+				InputBox.Text = string.Join( " ", parts ) + " ";
+			}
+			
+			InputBox.CaretPosition = InputBox.Text.Length;
+			filteredSuggestions.Clear();
+			StateHasChanged();
+			return;
+		}
+
+		var allPlayers = Scene.GetAllComponents<Trce.Game.Player.TrcePlayer>().ToList();
+		var localPlayer = allPlayers.FirstOrDefault( p => p.Network.IsOwner ) ?? allPlayers.FirstOrDefault();
+		var manager = GetChatManager();
+		
+		if ( !string.IsNullOrWhiteSpace( InputBox.Text ) && manager != null && localPlayer != null )
+		{
+			localPlayer.CmdSendChatMessage( InputBox.Text );
+		}
+		
+		CloseChat();
+	}
+
+	private void CloseChat()
+	{
+		InputBox.Text = "";
+		IsTyping = false;
+		InputBox?.Blur();
+		filteredSuggestions.Clear();
+	}
+
+	private async void OnBlur()
+	{
+		try
+		{
+			// 延遲檢核，防止拖拽或縮放時焦點瞬失導致關閉
+			await Task.Delay( 100 );
+			if ( !isDragging && !isResizing && (InputBox == null || !InputBox.HasFocus) )
+			{
+				IsTyping = false;
+				StateHasChanged();
+			}
+		}
+		catch (Exception ex)
+		{
+			Log.Error($"[Chat] OnBlur failed: {ex.Message}");
+		}
+	}
+	
+	protected override int BuildHash() => HashCode.Combine( GetVisibleMessages().Count, IsTyping, posX, posY, width, height, selectedSuggestionIndex );
+
+	public class ChatSettings
+	{
+		public float X { get; set; } = 50f;
+		public float Y { get; set; } = 50f;
+		public float Width { get; set; } = 550f;
+		public float Height { get; set; } = 400f;
+	}
+}

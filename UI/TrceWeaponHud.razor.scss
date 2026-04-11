@@ -1,0 +1,189 @@
+﻿.trce-weapon-hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    font-family: 'Outfit', sans-serif;
+    z-index: 60;
+
+    /* 皞? (?Ｗ?甇?葉憭? */
+    .crosshair-container {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        .crosshair {
+            position: absolute;
+            background-color: rgba(57, 255, 130, 0.8);
+            box-shadow: 0 0 5px rgba(57, 255, 130, 0.4);
+        }
+
+        .center-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 6px #39ff82;
+        }
+
+        .line {
+            width: 2px;
+            height: 8px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(0, 0, 0, 0.8);
+            border-radius: 1px;
+            transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .top,
+        .bottom {
+            width: 2px;
+            height: 10px;
+        }
+
+        .left,
+        .right {
+            width: 10px;
+            height: 2px;
+        }
+    }
+
+    /* 敶???(?喃?閫? */
+    .ammo-container {
+        position: absolute;
+        bottom: 30px;
+        right: 30px;
+        background-color: rgba(8, 12, 18, 0.75);
+        backdrop-filter: blur(8px);
+        border-right: 3px solid #39ff82;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        padding: 12px 16px;
+        gap: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+
+        .ammo-left {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+
+            .weapon-name {
+                color: #8892a0;
+                font-size: 14px;
+                font-weight: 600;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+                margin-bottom: -5px;
+            }
+
+            .ammo-nums {
+                display: flex;
+                align-items: baseline;
+                gap: 4px;
+
+                .current {
+                    font-family: 'Roboto Mono', monospace;
+                    font-size: 42px;
+                    font-weight: 700;
+                    color: white;
+
+                    &.low-ammo {
+                        color: #ff4757;
+                        text-shadow: 0 0 10px rgba(255, 71, 87, 0.6);
+                        animation: flashRed 1s infinite alternate;
+                    }
+                }
+
+                .divider {
+                    font-size: 24px;
+                    color: rgba(255, 255, 255, 0.3);
+                }
+
+                .reserve {
+                    font-family: 'Roboto Mono', monospace;
+                    font-size: 20px;
+                    color: #a0aab8;
+                }
+            }
+        }
+
+        .ammo-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+
+            .ammo-type {
+                color: #45aaf2;
+                font-size: 13px;
+                font-weight: bold;
+                letter-spacing: 0.5px;
+                background-color: rgba(69, 170, 242, 0.1);
+                padding: 2px 8px;
+                border-radius: 4px;
+            }
+
+            .reload-bar {
+                width: 80px;
+                height: 4px;
+                background-color: rgba(255, 255, 255, 0.1);
+                margin-top: 6px;
+                border-radius: 2px;
+                overflow: hidden;
+
+                .bar-fill {
+                    height: 100%;
+                    width: 100%;
+                    background-color: #f39c12;
+                    transform-origin: left;
+                    animation: reloadAnim 2s linear forwards;
+                }
+            }
+
+            .reload-text {
+                font-size: 10px;
+                color: #f39c12;
+                margin-top: 2px;
+                animation: blink 0.5s infinite alternate;
+            }
+        }
+    }
+}
+
+@keyframes flashRed {
+    from {
+        opacity: 0.7;
+    }
+
+    to {
+        opacity: 1;
+        filter: drop-shadow(0 0 15px rgba(255, 71, 87, 0.8));
+    }
+}
+
+@keyframes reloadAnim {
+    from {
+        transform: scaleX(0);
+    }
+
+    to {
+        transform: scaleX(1);
+    }
+}
+
+@keyframes blink {
+    from {
+        opacity: 0.3;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+

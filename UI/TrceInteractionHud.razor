@@ -1,0 +1,152 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Trce.Kernel.Event;
+@using static Trce.Kernel.Event.CoreEvents;
+@namespace Sandbox.UI
+@inherits Sandbox.UI.Panel
+
+<root class="trce-interaction-hud @(_hasTarget ? "visible" : "")">
+	@if ( _hasTarget )
+	{
+		<div class="interact-hint">
+			<div class="glyph-container">
+				<img class="glyph" src="@Input.GetGlyph( "use", InputGlyphSize.Small, GlyphStyle.Knockout )" />
+			</div>
+			<div class="label-container">
+				<span class="label">@_currentLabel</span>
+			</div>
+		</div>
+	}
+</root>
+
+@code
+{
+	// ─── 本地狀態（由 InteractionTargetChangedEvent 驅動） ───
+
+	/// <summary>
+	/// 當前互動提示文字。<br/>
+	/// 由 <see cref="OnInteractionTargetChanged"/> 更新，UI 直接綁定此欄位。
+	/// </summary>
+	private string _currentLabel = string.Empty;
+
+	/// <summary>是否有有效的互動目標（控制 HUD 可見性與提示顯示）。</summary>
+	private bool _hasTarget = false;
+
+	// ─── EventBus 訂閱管理 ───
+
+	/// <summary>快取本地玩家的 EntityEventBus 實例，供取消訂閱使用。</summary>
+	private EntityEventBus _localBus;
+
+	/// <summary>
+	/// InteractionTargetChangedEvent 處理委派的快取實例。
+	/// 必須快取同一實例才能在 Unsubscribe 時正確移除。
+	/// </summary>
+	private System.Action<InteractionTargetChangedEvent> _onTargetChanged;
+
+	// ─────────────────────────────────────────────────────────────────
+	//  生命週期
+	// ─────────────────────────────────────────────────────────────────
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		if ( !firstTime ) return;
+
+		// 快取委派，確保 Subscribe/Unsubscribe 使用相同實例
+		_onTargetChanged = OnInteractionTargetChanged;
+
+		TrySubscribeToLocalPlayer();
+	}
+
+	public override void OnDeleted()
+	{
+		UnsubscribeFromBus();
+		base.OnDeleted();
+	}
+
+	// ─────────────────────────────────────────────────────────────────
+	//  訂閱 / 取消訂閱
+	// ─────────────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// 嘗試定位本地玩家的 <see cref="EntityEventBus"/> 並完成訂閱。
+	/// <para>
+	/// ⚠️ 此方法內的 <c>GetAllComponents</c> 僅在 UI 初始化時執行一次（冷路徑），
+	/// 完全符合架構規範「禁止在 Tick/Update 中呼叫」。
+	/// </para>
+	/// </summary>
+	private void TrySubscribeToLocalPlayer()
+	{
+		if ( Sandbox.Game.ActiveScene == null || Connection.Local == null ) return;
+
+		foreach ( var bus in Sandbox.Game.ActiveScene.GetAllComponents<EntityEventBus>() )
+		{
+			if ( bus.Network.Owner?.SteamId == Connection.Local.SteamId )
+			{
+				_localBus = bus;
+				break;
+			}
+		}
+
+		if ( _localBus == null ) return;
+
+		_localBus.Subscribe( _onTargetChanged );
+	}
+
+	/// <summary>
+	/// 移除所有訂閱。
+	/// <para>在 <see cref="OnDeleted"/> 中呼叫，防止 HUD 銷毀後 Stale Delegate 仍被觸發。</para>
+	/// </summary>
+	private void UnsubscribeFromBus()
+	{
+		if ( _localBus == null ) return;
+		_localBus.Unsubscribe( _onTargetChanged );
+		_localBus = null;
+	}
+
+	// ─────────────────────────────────────────────────────────────────
+	//  事件處理器
+	// ─────────────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// 處理 <see cref="InteractionTargetChangedEvent"/>，更新 HUD 顯示狀態。
+	/// <para>
+	/// <b>職責邊界聲明：</b><br/>
+	/// 射線檢測 (Raycast)、可互動判斷 (CanInteract)、輸入觸發 (OnInteract) 等邏輯
+	/// 已完全移除，應由 <c>InteractionSystem</c> 或 <c>TrcePlayerBrain</c> 負責。<br/>
+	/// 本 UI 組件的唯一職責是：<b>接收事件 → 更新本地欄位 → 觸發渲染</b>。
+	/// </para>
+	/// </summary>
+	private void OnInteractionTargetChanged( InteractionTargetChangedEvent e )
+	{
+		_hasTarget    = e.HasTarget;
+		_currentLabel = e.HasTarget ? (e.InteractionLabel ?? string.Empty) : string.Empty;
+
+		// Push Model 的核心渲染觸發
+		StateHasChanged();
+	}
+
+	// ─────────────────────────────────────────────────────────────────
+	//  Tick — 已清空。所有邏輯由 EventBus Push 驅動。
+	// ─────────────────────────────────────────────────────────────────
+
+	// ✅ Tick() 已移除。
+	//
+	// 舊版 Tick() 中包含：
+	//   1. Scene.Trace.Ray(...)  → 射線檢測               ❌ 已刪除，移至 InteractionSystem
+	//   2. Components.GetInAncestorsOrSelf<IInteractable>  ❌ 已刪除，移至 InteractionSystem
+	//   3. CanInteract() / OnInteract() 呼叫              ❌ 已刪除，移至 TrcePlayerBrain
+	//
+	// ─── ARCHITECTURE NOTE (InteractionSystem / TrcePlayerBrain 待實作) ──────────
+	//   - 每幀執行攝影機前方射線檢測
+	//   - 若命中 IInteractable 且 CanInteract 通過 → Publish InteractionTargetChangedEvent(id, label)
+	//   - 若未命中或離開範圍          → Publish InteractionTargetChangedEvent.NoTarget()
+	//   - 若玩家按下 "use" 鍵         → 呼叫 IInteractable.OnInteract()
+	// ─────────────────────────────────────────────────────────────────────────────
+
+	// ─────────────────────────────────────────────────────────────────
+	//  BuildHash — Push Model 停用框架自動輪詢
+	// ─────────────────────────────────────────────────────────────────
+
+	/// <summary>回傳常數，停用 Blazor 框架的 BuildHash 輪詢機制。</summary>
+	protected override int BuildHash() => 0;
+}

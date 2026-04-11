@@ -1,0 +1,44 @@
+.trce-interaction-hud {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.1s ease-in-out;
+
+	&.visible {
+		opacity: 1;
+	}
+
+	.interact-hint {
+		display: flex;
+		align-items: center;
+		background-color: rgba( 0, 0, 0, 0.7 );
+		border-radius: 4px;
+		padding: 4px 12px;
+		border: 1px solid rgba( 255, 255, 255, 0.1 );
+		box-shadow: 0 4px 15px rgba( 0, 0, 0, 0.5 );
+		transform: translateY( 50px );
+
+		.glyph-container {
+			margin-right: 8px;
+			.glyph {
+				height: 24px;
+				width: 24px;
+				object-fit: contain;
+			}
+		}
+
+		.label-container {
+			.label {
+				color: white;
+				font-family: "Outfit", sans-serif;
+				font-size: 16px;
+				text-transform: uppercase;
+				letter-spacing: 1px;
+				text-shadow: 0 2px 4px rgba( 0, 0, 0, 0.5 );
+			}
+		}
+	}
+}

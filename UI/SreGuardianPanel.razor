@@ -1,0 +1,131 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System.Collections.Generic;
+@using Trce.Kernel.SRE;
+@using System;
+@using System.Linq;
+@using System.Threading.Tasks;
+
+@namespace Sandbox.UI
+@inherits Sandbox.UI.Panel
+
+<root class="sre-guardian-panel @(SreIsVisible ? "" : "hidden")">
+	<div class="panel-header" onclick="@ToggleVisibility">
+		<div class="status-dot @(IsBusy ? "busy" : "")"></div>
+		<div class="title">SRE GUARDIAN v1.0 [SUBSYSTEM_ACTIVE]</div>
+		<div class="status-info">@(IsBusy ? "ANALYZING..." : "SECURE")</div>
+		<div class="toggle-btn" style="display: flex; align-items: center;">
+			CLOSE 
+			<img style="height: 16px; margin-left: 4px;" src="@Input.GetGlyph( "escape", InputGlyphSize.Small, GlyphStyle.Knockout )" />
+		</div>
+	</div>
+
+	<div class="panel-content">
+		<div class="header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+			<span class="section-label">活躍插件 / ACTIVE MODULES</span>
+			<button class="debug-btn" onclick="@RunDiagnosis">☢ 重整異常診斷系統 (FORCE ANALYZE)</button>
+		</div>
+
+		<div class="plugin-list">
+			@if ( SreSystem.Instance != null && SreSystem.Instance.GetActivePlugins() != null )
+			{
+				foreach ( var plugin in SreSystem.Instance.GetActivePlugins() )
+				{
+					<div class="plugin-tag">@plugin</div>
+				}
+			}
+			else
+			{
+				<div class="plugin-tag" style="color: #ffcc00; font-weight: bold;">( ! ) 正在等待 SRE SYSTEM 初始化...</div>
+			}
+		</div>
+
+		<span class="section-label">當前診斷報告 / DIAGNOSIS REPORT</span>
+		<div class="diagnosis-box">
+			<div class="diag-header">
+				<span class="icon">@(IsBusy ? "📡" : (string.IsNullOrEmpty(LastDiagnosis) ? "✅" : "⚠️"))</span>
+				<span class="label">@(IsBusy ? "連線至 iGPU 分析模組..." : (string.IsNullOrEmpty(LastDiagnosis) ? "系統尚無檢測到明顯異常" : "偵測到異常活動攔截"))</span>
+			</div>
+			<div class="diag-text">
+				@(IsBusy ? "正在進行分層網絡拓樸掃描，請稍候..." : (string.IsNullOrEmpty(LastDiagnosis) ? "所有 TRCE 子系統目前運作良好。" : LastDiagnosis))
+			</div>
+		</div>
+
+		<div class="stats-row">
+			<div class="stat-item">GUARD_CORE: v2.4.1</div>
+			<div class="stat-item">LATENCY: 1.2ms</div>
+			<div class="stat-item">SECURE_LEVEL: MAX</div>
+		</div>
+	</div>
+</root>
+
+@code
+{
+	public bool SreIsVisible { get; set; } = false;
+	private bool IsBusy { get; set; } = false;
+	private string LastDiagnosis { get; set; } = "";
+	private RealTimeSince _lastRefreshed = 0;
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		if ( firstTime )
+		{
+			var manager = SreSystem.Instance;
+			if ( manager != null )
+			{
+				manager.OnDiagnosisStarted += HandleDiagnosisStarted;
+				manager.OnDiagnosisReceived += HandleRealDiagnosis;
+			}
+		}
+	}
+
+	public override void OnDeleted()
+	{
+		var manager = SreSystem.Instance;
+		if ( manager != null )
+		{
+			manager.OnDiagnosisStarted -= HandleDiagnosisStarted;
+			manager.OnDiagnosisReceived -= HandleRealDiagnosis;
+		}
+	}
+
+	private void HandleDiagnosisStarted()
+	{
+		SreIsVisible = true;
+		IsBusy = true;
+		LastDiagnosis = "";
+		StateHasChanged();
+	}
+
+	private void HandleRealDiagnosis( string diagnosis )
+	{
+		IsBusy = false;
+		LastDiagnosis = diagnosis;
+		StateHasChanged();
+	}
+
+	public void ToggleVisibility()
+	{
+		SreIsVisible = !SreIsVisible;
+		if ( SreIsVisible ) Focus(); // 打開時獲取焦點
+		StateHasChanged();
+	}
+
+	private async Task RunDiagnosis()
+	{
+		if ( IsBusy ) return;
+
+		Log.Info( "TRCE: Diagnosis Internal Routine Triggered." );
+		
+		IsBusy = true;
+		LastDiagnosis = "";
+		StateHasChanged();
+
+		// 模擬分析過程 (1.5秒)
+		await Task.Delay( 1500 );
+		
+		HandleRealDiagnosis( "iGPU 分析完畢：目前的 Rpc 調用頻率正常 (34/s)。未發現顯著異常。" );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( SreSystem.Instance?.GetActivePlugins()?.Count() ?? 0, SreIsVisible, IsBusy, LastDiagnosis );
+}

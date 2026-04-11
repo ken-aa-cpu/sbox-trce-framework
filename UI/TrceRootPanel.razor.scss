@@ -1,0 +1,182 @@
+﻿.trce-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    font-family: 'Outfit', sans-serif;
+    z-index: 50;
+
+    .hud-top {
+        position: absolute;
+        top: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+
+        .phase-info {
+            display: flex;
+            align-items: center;
+            background-color: rgba(14, 20, 32, 0.8);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 12px 24px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+
+            .phase-name {
+                color: #e8ecf1;
+                font-weight: 600;
+                font-size: 28px;
+                margin-right: 20px;
+                letter-spacing: 2px;
+            }
+
+            .phase-time {
+                color: #39ff82;
+                font-family: 'Roboto Mono', monospace;
+                font-size: 32px;
+                font-weight: 700;
+                text-shadow: 0 0 15px rgba(57, 255, 130, 0.4);
+            }
+        }
+
+        .papi-stats {
+            display: flex;
+            gap: 16px;
+
+            .stat {
+                background-color: rgba(14, 20, 32, 0.6);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 20px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+
+                .label {
+                    color: #8892a0;
+                    text-transform: uppercase;
+                    letter-spacing: 2px;
+                    font-size: 16px;
+                }
+
+                .value {
+                    color: #45aaf2;
+                    font-weight: 600;
+                }
+            }
+        }
+    }
+
+    .hud-bottom {
+        position: absolute;
+        left: 30px;
+        top: 50%;
+        transform: translateY(-50%);
+
+        .player-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background-color: rgba(8, 12, 18, 0.75);
+            backdrop-filter: blur(8px);
+            border-left: 4px solid #f39c12;
+            padding: 18px 24px;
+            border-radius: 6px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+
+            .stat-row {
+                color: #e8ecf1;
+                font-size: 22px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+        }
+    }
+
+    .confrontation-overlay {
+        position: absolute;
+        top: 20%;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        color: white;
+
+        h1 {
+            font-size: 48px;
+            color: #e74c3c;
+            text-shadow: 0 0 20px rgba(231, 76, 60, 0.8);
+            margin: 0;
+            letter-spacing: 4px;
+        }
+
+        p {
+            font-size: 18px;
+            color: #bdc3c7;
+            margin-top: 10px;
+            letter-spacing: 2px;
+        }
+    }
+
+    .hunt-overlay {
+        position: absolute;
+        top: 15%;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+
+        .warning-strip {
+            width: 300px;
+            height: 4px;
+            background-color: #e74c3c;
+            /* 暫時改成純色，徹底排除漸層報錯 */
+            margin: 10px 0;
+        }
+
+        h1 {
+            color: #e74c3c;
+            font-size: 36px;
+            letter-spacing: 5px;
+            margin: 0;
+        }
+
+        h2 {
+            color: white;
+            font-size: 56px;
+            font-family: 'Roboto Mono', monospace;
+            margin: -5px 0 0 0;
+            text-shadow: 0 0 15px rgba(231, 76, 60, 0.8);
+        }
+    }
+}
+
+@keyframes overlayFadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+@keyframes pulseRed {
+    from {
+        opacity: 0.8;
+    }
+
+    to {
+        opacity: 1;
+    }
+}

@@ -1,0 +1,186 @@
+.sre-guardian-panel {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%) scale(1);
+	width: 85vw;
+	/* 佔據 85% 螢幕寬度 */
+	height: 85vh;
+	/* 佔據 85% 螢幕高度 */
+	/* 從 320 放大到 480 */
+	background-color: rgba(6, 10, 18, 0.95);
+	backdrop-filter: blur(25px) saturate(180%);
+	border: 2px solid rgba(0, 255, 255, 0.4);
+	border-radius: 24px;
+	display: flex;
+	flex-direction: column;
+	font-family: 'JetBrains Mono', monospace;
+	color: #e0e0e0;
+	pointer-events: all;
+	z-index: 1000;
+	box-shadow: 0 0 100px rgba(0, 0, 0, 0.9), 0 0 40px rgba(0, 255, 255, 0.1) inset;
+	transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+	transform-origin: center;
+
+	&.hidden {
+		opacity: 0;
+		transform: translate(-50%, -50%) scale(0.9);
+		pointer-events: none;
+	}
+
+	.panel-header {
+		padding: 20px 30px;
+		background-color: rgba(0, 255, 255, 0.08);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		display: flex;
+		align-items: center;
+		cursor: pointer;
+
+		.status-dot {
+			width: 15px;
+			height: 15px;
+			border-radius: 50%;
+			background-color: #00ffcc;
+			box-shadow: 0 0 20px #00ffcc;
+			margin-right: 20px;
+
+			&.busy {
+				background-color: #ffcc00;
+				box-shadow: 0 0 20px #ffcc00;
+				animation: pulse 1s infinite;
+			}
+		}
+
+		.title {
+			flex-grow: 1;
+			font-size: 24px;
+			/* 放大標題 */
+			font-weight: 900;
+			letter-spacing: 2px;
+			color: #00ffcc;
+		}
+	}
+
+	.panel-content {
+		padding: 40px;
+		flex-grow: 1;
+		/* 佔滿剩餘高度 */
+		overflow-y: scroll;
+
+		.section-label {
+			font-size: 18px;
+			/* 標籤放大 */
+			text-transform: uppercase;
+			color: rgba(255, 255, 255, 0.5);
+			display: flex;
+			letter-spacing: 4px;
+			margin-bottom: 20px;
+		}
+
+		.debug-btn {
+			font-family: 'JetBrains Mono', monospace;
+			font-size: 20px;
+			/* 超大按鈕 */
+			padding: 15px 30px;
+			background-color: rgba(255, 60, 60, 0.3);
+			border: 2px solid rgba(255, 60, 60, 0.6);
+			border-radius: 8px;
+			color: #ffffff;
+			cursor: pointer;
+			text-shadow: 0 0 10px rgba(255, 60, 60, 0.8);
+			margin-bottom: 30px;
+
+			&:hover {
+				background-color: rgba(255, 60, 60, 0.5);
+				transform: scale(1.02);
+				box-shadow: 0 0 30px rgba(255, 60, 60, 0.4);
+			}
+		}
+
+		.plugin-list {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 10px;
+			margin-bottom: 40px;
+
+			.plugin-tag {
+				font-size: 16px;
+				padding: 6px 15px;
+				background-color: rgba(255, 255, 255, 0.08);
+				border: 1px solid rgba(255, 255, 255, 0.15);
+				border-radius: 6px;
+				color: rgba(255, 255, 255, 0.8);
+			}
+		}
+
+		.diagnosis-box {
+			background-color: rgba(0, 0, 0, 0.5);
+			border: 2px solid rgba(0, 255, 255, 0.3);
+			border-radius: 12px;
+			padding: 25px;
+			margin-top: 20px;
+			animation: fadeIn 0.5s ease;
+
+			.diag-header {
+				display: flex;
+				align-items: center;
+				margin-bottom: 15px;
+
+				.icon {
+					font-size: 24px;
+					margin-right: 15px;
+				}
+
+				.label {
+					font-size: 20px;
+					font-weight: bold;
+					color: #ffcc00;
+				}
+			}
+
+			.diag-text {
+				font-size: 18px;
+				/* 診斷文字放大 */
+				line-height: 1.8;
+				color: #ffffff;
+			}
+		}
+
+		.stats-row {
+			display: flex;
+			justify-content: space-between;
+			margin-top: 30px;
+			font-size: 16px;
+			color: rgba(255, 255, 255, 0.4);
+		}
+	}
+}
+
+@keyframes pulse {
+	0% {
+		opacity: 1;
+		transform: scale(1);
+	}
+
+	50% {
+		opacity: 0.5;
+		transform: scale(0.8);
+	}
+
+	100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(5px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}

@@ -1,0 +1,179 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Trce.Kernel.Event;
+@using static Trce.Kernel.Event.CoreEvents;
+@namespace Sandbox.UI
+@inherits Sandbox.UI.Panel
+
+<root class="trce-weapon-hud">
+	
+	@if ( _hasWeapon )
+	{
+		<!-- 準星 (Crosshair) -->
+		<div class="crosshair-container">
+			<div class="crosshair center-dot"></div>
+			<div class="crosshair line top" style="transform: translateY(-@_spreadOffset)px"></div>
+			<div class="crosshair line bottom" style="transform: translateY(@_spreadOffset)px"></div>
+			<div class="crosshair line left" style="transform: translateX(-@_spreadOffset)px"></div>
+			<div class="crosshair line right" style="transform: translateX(@_spreadOffset)px"></div>
+		</div>
+
+		<!-- 彈藥資訊 -->
+		<div class="ammo-container">
+			<div class="ammo-left">
+				<div class="weapon-name">@_weaponName</div>
+				<div class="ammo-nums">
+					<span class="current @(_currentAmmo <= 2 ? "low-ammo" : "")">@_currentAmmo</span>
+					<span class="divider">/</span>
+					<span class="reserve">@_reserveAmmo</span>
+				</div>
+			</div>
+			<div class="ammo-right">
+				<div class="ammo-type">@_ammoType</div>
+				@if ( _isReloading )
+				{
+					<div class="reload-bar">
+						<div class="bar-fill"></div>
+					</div>
+					<div class="reload-text">換彈中...</div>
+				}
+			</div>
+		</div>
+	}
+	
+</root>
+
+@code
+{
+	// ─── 本地狀態（由 EventBus 事件驅動更新，不依賴 Tick 輪詢） ───
+
+	/// <summary>是否持有武器（控制整個 HUD 可見性）。</summary>
+	private bool   _hasWeapon    = false;
+
+	/// <summary>武器顯示名稱（由 WeaponEquippedEvent 或 WeaponFiredEvent 攜帶）。</summary>
+	private string _weaponName   = string.Empty;
+
+	/// <summary>彈匣剩餘子彈數，由最新的 WeaponFiredEvent 更新。</summary>
+	private int    _currentAmmo  = 0;
+
+	/// <summary>備用彈藥數（由 WeaponReloadedEvent 等更新，此版本暫為 0）。</summary>
+	private int    _reserveAmmo  = 0;
+
+	/// <summary>彈藥類型顯示字串。</summary>
+	private string _ammoType     = string.Empty;
+
+	/// <summary>是否正在換彈，控制換彈條顯示。</summary>
+	private bool   _isReloading  = false;
+
+	/// <summary>
+	/// 準星擴散偏移量字串（px 值），直接從 WeaponFiredEvent.CurrentSpread 計算。
+	/// </summary>
+	private string _spreadOffset = "10";
+
+	// ─── EventBus 訂閱管理 ───
+
+	/// <summary>快取本地玩家的 EntityEventBus，用於 Unsubscribe 時定位。</summary>
+	private EntityEventBus _localBus;
+
+	/// <summary>WeaponFiredEvent 的處理委派快取，確保 Unsubscribe 時使用同一實例。</summary>
+	private System.Action<WeaponFiredEvent> _onWeaponFired;
+
+	// ─────────────────────────────────────────────────────────────────
+	//  生命週期
+	// ─────────────────────────────────────────────────────────────────
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		if ( !firstTime ) return;
+
+		// 快取委派實例（避免每次訂閱時建立新 Delegate 物件）
+		_onWeaponFired = OnWeaponFired;
+
+		TrySubscribeToLocalPlayer();
+	}
+
+	public override void OnDeleted()
+	{
+		UnsubscribeFromBus();
+		base.OnDeleted();
+	}
+
+	// ─────────────────────────────────────────────────────────────────
+	//  訂閱 / 取消訂閱
+	// ─────────────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// 嘗試找到本地玩家的 EntityEventBus 並完成訂閱。
+	/// <para>
+	/// 若場景尚未初始化（例如 HUD 比玩家物件更早載入），
+	/// 此方法將靜默失敗，等待下一個機會（如 Tick 首次完成後重試）。
+	/// </para>
+	/// </summary>
+	private void TrySubscribeToLocalPlayer()
+	{
+		if ( Sandbox.Game.ActiveScene == null || Connection.Local == null ) return;
+
+		// 找到本地玩家的 EntityEventBus
+		// ※ 此 GetAllComponents 僅在 OnAfterTreeRender 執行一次，非熱路徑，可接受。
+		foreach ( var bus in Sandbox.Game.ActiveScene.GetAllComponents<EntityEventBus>() )
+		{
+			// 透過網路擁有者識別本地玩家的 Bus
+			if ( bus.Network.Owner?.SteamId == Connection.Local.SteamId )
+			{
+				_localBus = bus;
+				break;
+			}
+		}
+
+		if ( _localBus == null ) return;
+
+		_localBus.Subscribe( _onWeaponFired );
+	}
+
+	/// <summary>取消所有訂閱，防止 HUD 被刪除後出現 Stale Delegate。</summary>
+	private void UnsubscribeFromBus()
+	{
+		if ( _localBus == null ) return;
+		_localBus.Unsubscribe( _onWeaponFired );
+		_localBus = null;
+	}
+
+	// ─────────────────────────────────────────────────────────────────
+	//  事件處理器
+	// ─────────────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// 接收 WeaponFiredEvent，更新本地狀態並請求 Blazor 重新渲染。
+	/// <para>
+	/// 此方法在熱路徑 (Hot Path) 上執行，應保持極低成本：
+	/// 僅做欄位賦值 + StateHasChanged()，禁止 LINQ / Scene 訪問。
+	/// </para>
+	/// </summary>
+	private void OnWeaponFired( WeaponFiredEvent e )
+	{
+		_hasWeapon    = true;
+		_currentAmmo  = e.CurrentAmmo;
+		_spreadOffset = e.CurrentSpread.ToString( "F0" );
+
+		// ─── DESIGN NOTE ─────────────────────────────────────────────────────────
+		// WeaponName, ReserveAmmo, AmmoType 應由 WeaponEquippedEvent 提供 (待 CoreEvents 擴充)。
+		// 此版本以 WeaponFiredEvent.WeaponId 作為臨時的「武器名稱」同步來源。
+		// 當 WeaponEquippedEvent 加入 CoreEvents.cs 後，訂閱並在此處更新這三個欄位。
+		// ─────────────────────────────────────────────────────────────────────────
+		if ( !string.IsNullOrEmpty( e.WeaponId ) )
+			_weaponName = e.WeaponId;
+
+		// 通知 Blazor 重新渲染（Push Model 的核心，替代 BuildHash 輪詢）
+		StateHasChanged();
+	}
+
+	// ─────────────────────────────────────────────────────────────────
+	//  BuildHash — 由於已改為 Push Model，此處可回傳常數以停用框架輪詢
+	// ─────────────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// 回傳常數 0，永遠不觸發自動重渲染。
+	/// 所有渲染由 <c>StateHasChanged()</c> 在事件處理器中手動觸發。
+	/// </summary>
+	protected override int BuildHash() => 0;
+}
