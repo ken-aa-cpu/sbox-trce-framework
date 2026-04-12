@@ -1,0 +1,12 @@
+{
+  "Type": "library",
+  "Title": "TRCE Framework",
+  "Ident": "ken.trce_framework",
+  "Description": "A Spigot-inspired plugin framework for s&box.",
+  "CodePaths": [
+    "code/Kernel",
+    "code/Plugins",
+    "code/UI",
+    "code/Tests"
+  ]
+}

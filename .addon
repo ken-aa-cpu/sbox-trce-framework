@@ -1,0 +1,12 @@
+{
+  "Title": "TRCE Framework",
+  "Description": "A Spigot-inspired plugin framework for s&box. Build modular, maintainable multiplayer games with a plugin ecosystem, zero-allocation event bus, service locator, permission system, economy, inventory, attributes, placeholders, and more.",
+  "Author": "TRCE Team",
+  "Tags": [
+    "framework",
+    "plugin",
+    "multiplayer",
+    "server",
+    "library"
+  ]
+}
