@@ -1,4 +1,4 @@
-# TRCE Framework
+# TRCE Framework for s&box
 
 **A Spigot-inspired plugin framework for s&box.**  
 Build modular, maintainable multiplayer games — the way Minecraft server developers do it.
