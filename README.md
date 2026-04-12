@@ -275,5 +275,5 @@ Plugins and games built on TRCE are entirely yours. No restrictions on what you 
 
 Built by the TRCE Team.  
 Inspired by the Spigot plugin ecosystem.  
-Running on [s&box](https://sbox.game) by Facepunch Studios.
-Current limitations: Architecture refining, Security hardening. Feel free to contribute!
+Running on [s&box](https://sbox.game) by Facepunch Studios.  
+Current limitations: Architecture refining, Security hardening. Feel free to contribute.
