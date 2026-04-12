@@ -6,9 +6,10 @@ using Trce.Kernel.Net;
 using Trce.Kernel.Bridge;
 using Trce.Kernel.Auth;
 using Trce.Plugins.Combat;
-using Trce.Game.Player;
 using Trce.Plugins.GameState;
 using Trce.Plugins.Shared.Confrontation;
+using Trce.Kernel.Plugin;
+using Trce.Kernel.Plugin.Services;
 
 namespace Trce.Plugins.Finance
 
@@ -204,8 +205,8 @@ namespace Trce.Plugins.Finance
 			var allSessions = TrceAuthService.Instance?.GetActiveSessions() ?? new List<Kernel.Auth.PlayerSession>();
 			foreach ( var session in allSessions )
 			{
-				var playerComp = Scene.GetAllComponents<TrcePlayer>().FirstOrDefault( p => p.SteamId == session.SteamId );
-				var dm = playerComp?.Scene.GetAllComponents<DeathManager>().FirstOrDefault();
+				var playerObj = TrceServiceManager.Instance?.GetService<IPawnService>()?.GetPlayerPawn( session.SteamId );
+				var dm = playerObj?.Scene.GetAllComponents<DeathManager>().FirstOrDefault();
 
 				bool survived = dm != null && !dm.IsDeadOrGone( session.SteamId );
 				int xp = survived ? XP_ROUND_SURVIVE : XP_ROUND_DEAD;

@@ -1,8 +1,8 @@
 using Sandbox;
 using Trce.Kernel.Plugin.Interaction;
 using Trce.Kernel.Bridge;
-using Trce.Game.Player; // TrcePlayer
 using Trce.Plugins.Finance; // ShopManager
+
 
 namespace Trce.Plugins.Shared.Npc
 {
@@ -33,8 +33,7 @@ namespace Trce.Plugins.Shared.Npc
 		public void OnInteract( GameObject user )
 		{
 			// Get the player from the interaction source
-			var player = user.Components.GetInAncestorsOrSelf<TrcePlayer>();
-			ulong steamId = player?.SteamId ?? 0;
+			ulong steamId = user.Network?.Owner?.SteamId ?? 0;
 
 			if ( steamId == 0 ) return;
 

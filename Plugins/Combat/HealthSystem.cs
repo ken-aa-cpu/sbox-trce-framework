@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Trce.Kernel.Plugin;
 using Trce.Kernel.Plugin.Services;
 using Trce.Kernel.Bridge;
+using Trce.Kernel.Event;
 
 namespace Trce.Plugins.Combat
 {
@@ -25,6 +26,11 @@ namespace Trce.Plugins.Combat
 	public class HealthSystem : TrcePlugin, IHealthService
 	{
 
+		[Property] public float RegenDelay { get; set; } = 5f;
+		[Property] public float RegenRate { get; set; } = 2f;
+
+		private List<ulong> _cachedPlayerIds = new();
+
 		public Action<ulong, float, string> OnHealed;
 		public Action<ulong, float, ulong, string> OnDamaged;
 
@@ -38,7 +44,22 @@ namespace Trce.Plugins.Combat
 
 		protected override Task OnPluginEnabled()
 		{
+			RegisterEvent<CoreEvents.ClientReadyEvent>( OnClientReady );
+			RegisterEvent<CoreEvents.ClientDisconnectedEvent>( OnClientDisconnected );
 			return Task.CompletedTask;
+		}
+
+		private void OnClientReady( CoreEvents.ClientReadyEvent e )
+		{
+			if ( !_cachedPlayerIds.Contains( e.SteamId ) )
+			{
+				_cachedPlayerIds.Add( e.SteamId );
+			}
+		}
+
+		private void OnClientDisconnected( CoreEvents.ClientDisconnectedEvent e )
+		{
+			_cachedPlayerIds.Remove( e.SteamId );
 		}
 
 		protected override void OnFixedUpdate()
@@ -46,20 +67,17 @@ namespace Trce.Plugins.Combat
 			if ( !(Bridge?.IsServer ?? false) ) return;
 
 			// Global Health Regeneration Logic
-			var players = PlayerManager?.GetAllPlayers();
-			if ( players == null ) return;
-
-			foreach ( var p in players )
+			foreach ( var steamId in _cachedPlayerIds )
 			{
-				float regenDelay = 5f;
-				float regenRate = 2f;
-
-				if ( lastDamageTimes.TryGetValue( p.SteamId, out var time ) && time > regenDelay )
+				if ( lastDamageTimes.TryGetValue( steamId, out var time ) && time > RegenDelay )
 				{
+					var p = PlayerManager?.GetPlayer( steamId );
+					if ( p == null ) continue;
+
 					if ( p.Health < p.MaxHealth )
 					{
-						float newHealth = Math.Min( p.MaxHealth, p.Health + regenRate * Time.Delta );
-						PlayerManager.SetHealth( p.SteamId, newHealth );
+						float newHealth = Math.Min( p.MaxHealth, p.Health + RegenRate * Time.Delta );
+						PlayerManager.SetHealth( steamId, newHealth );
 					}
 				}
 			}

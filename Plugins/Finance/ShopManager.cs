@@ -3,9 +3,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Trce.Kernel.Player;
-using Trce.Game.Player;
 using Trce.Kernel.Command;
 using Trce.Kernel.Bridge;
+using Trce.Kernel.Plugin;
+using Trce.Kernel.Plugin.Services;
 
 namespace Trce.Plugins.Finance
 {
@@ -122,7 +123,7 @@ namespace Trce.Plugins.Finance
 			var listing = SyncedListings.FirstOrDefault( l => l.ListingId == itemId || l.Template.ResourceName == itemId );
 			if ( listing == null ) return;
 
-			var playerEntity = Scene.GetAllComponents<TrcePlayer>().FirstOrDefault( p => p.SteamId == steamId )?.GameObject;
+			var playerEntity = TrceServiceManager.Instance?.GetService<IPawnService>()?.GetPlayerPawn( steamId );
 			ProcessPurchase( steamId, listing, playerEntity );
 		}
 
@@ -133,7 +134,7 @@ namespace Trce.Plugins.Finance
 			var listing = SyncedListings.FirstOrDefault( l => l.ListingId == listingId );
 			if ( listing == null ) return;
 
-			var playerObj = Scene.GetAllComponents<TrcePlayer>().FirstOrDefault( p => p.Network?.Owner == Rpc.Caller )?.GameObject;
+			var playerObj = TrceServiceManager.Instance?.GetService<IPawnService>()?.GetPlayerPawn( Rpc.Caller.SteamId );
 			ProcessPurchase( Rpc.Caller.SteamId, listing, playerObj );
 		}
 
