@@ -2,6 +2,7 @@ using Sandbox;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
+using Trce.Kernel.Plugin;
 
 namespace Trce.Kernel.SRE
 {
@@ -10,7 +11,7 @@ namespace Trce.Kernel.SRE
 	/// 負責追蹤所有插件的啟動狀態，並在發生錯誤時統一記錄。
 	/// 由引擎自動為每個場景實例化。
 	/// </summary>
-	public class SreSystem : GameObjectSystem, ISceneStartup
+	public class SreSystem : GameObjectSystem, ISceneStartup, ISreSystem
 	{
 		public static SreSystem Instance { get; private set; }
 
@@ -22,6 +23,13 @@ namespace Trce.Kernel.SRE
 		public SreSystem( Scene scene ) : base( scene )
 		{
 			Instance = this;
+		}
+
+		public void OnLevelLoaded()
+		{
+			// Register with TrceServiceManager so plugins can resolve via GetService<ISreSystem>().
+			// Must be done here (not in constructor) — TrceServiceManager may not exist yet at ctor time.
+			TrceServiceManager.Instance?.RegisterService<ISreSystem>( this );
 			Log.Info( "[SRE] Global SRE System active for current scene." );
 		}
 

@@ -2,7 +2,7 @@ using Sandbox;
 using Sandbox.UI;
 using System.Linq;
 using Trce.Plugins.Shared.Teams;
-using Trce.Game.Player;
+using Trce.Kernel.Player;
 using Trce.Kernel.Plugin;
 
 namespace Sandbox.UI
@@ -18,7 +18,7 @@ namespace Sandbox.UI
 	[Icon( "person_pin" )]
 	public class TrcePlayerMarker : Component
 	{
-		[Property] public TrcePlayer TargetPlayer { get; set; }
+		[Property] public ITrcePlayer TargetPlayer { get; set; }
 		[Property] public Vector3 Offset { get; set; } = Vector3.Up * 75f;
 
 		private Sandbox.WorldPanel worldPanel;
@@ -29,7 +29,7 @@ namespace Sandbox.UI
 
 		protected override void OnStart()
 		{
-			if ( TargetPlayer == null ) TargetPlayer = Components.Get<TrcePlayer>();
+			if ( TargetPlayer == null ) TargetPlayer = Components.Get<ITrcePlayer>();
 
 			// Create WorldPanel
 			worldPanel = Components.Create<Sandbox.WorldPanel>();
@@ -101,7 +101,7 @@ namespace Sandbox.UI
 				.IgnoreGameObject( Scene.Camera.GameObject )
 				.Run();
 
-			IsFocused = tr.Hit && tr.GameObject.Components.GetInAncestorsOrSelf<TrcePlayer>() == TargetPlayer;
+			IsFocused = tr.Hit && tr.GameObject.Components.GetInAncestorsOrSelf<ITrcePlayer>() == TargetPlayer;
 		}
 
 		private void UpdateTeamInfo()
@@ -123,4 +123,3 @@ namespace Sandbox.UI
 		}
 	}
 }
-

@@ -7,24 +7,32 @@ namespace Trce.Kernel.Net
 
 {
 	/// <summary>
-	///   / ? ? ???(Snapshot Sync)
+	/// Server-authoritative snapshot synchronization.
+	/// Periodically broadcasts a state hash to all clients.
+	/// Clients that detect a mismatch request a resync.
 	/// </summary>
 	[Title( "Snapshot Sync" ), Group( "Trce - Kernel" )]
 	public class SnapshotSync : Component
 	{
-		/// <summary> ? ? ? ( ?</summary>
+		/// <summary>Interval in seconds between each state broadcast from the server.</summary>
 		[Property, Description( "Snapshot checksum key" )]
 		public float SyncIntervalSeconds { get; set; } = 10f;
-		/// <summary> ? ?? ?? ???(Server ? ?? ? ? ?</summary>
+
+		/// <summary>The round secret used by the server to sign each state hash (server-only).</summary>
 		private string roundSecret;
-		/// <summary> </summary>
+
+		/// <summary>Tracks elapsed time since the last sync broadcast.</summary>
 		private TimeSince timeSinceLastSync = 0;
-		/// <summary> ?  ( ??</summary>
+
+		/// <summary>Cumulative count of desync events detected for this session.</summary>
 		[Sync]
 		public int DesyncCount { get; private set; }
+
 		public Action<ulong> OnResyncRequested;
+
 		private SandboxBridge _bridge;
 		private TrceRNG _rng;
+
 		protected override void OnAwake()
 		{
 			_bridge = SandboxBridge.Instance;
@@ -48,9 +56,10 @@ namespace Trce.Kernel.Net
 
 		}
 
-		// ?��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��???
-		// Server  ? ? ??
-		// ?��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��???
+		// ─────────────────────────────────────────────────────────────────
+		// Server-side state construction
+		// ─────────────────────────────────────────────────────────────────
+
 		private string BuildStateString()
 		{
 			var rngSeed = _rng?.CurrentRoundSeed ?? 0;
@@ -58,7 +67,7 @@ namespace Trce.Kernel.Net
 			return $"rng:{rngSeed}|time:{Math.Floor( Time.Now )}";
 		}
 
-		/// <summary> ?? ??Hash  </summary>
+		/// <summary>Signs the current state string and broadcasts it to all clients.</summary>
 		private void BroadcastStateHash()
 		{
 			var stateString = BuildStateString();
@@ -66,9 +75,10 @@ namespace Trce.Kernel.Net
 			RpcBroadcastHash( hash, stateString );
 		}
 
-		// ?��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��???
-		//  Client 端�?驗�?
-		// ?��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��??��???
+		// ─────────────────────────────────────────────────────────────────
+		// Client-side verification
+		// ─────────────────────────────────────────────────────────────────
+
 		[Rpc.Broadcast]
 		private void RpcBroadcastHash( string serverHash, string stateString )
 		{
@@ -82,7 +92,7 @@ namespace Trce.Kernel.Net
 
 		}
 
-		/// <summary> Client  ?? ? ?</summary>
+		/// <summary>Called by the client to notify the server that a resync is needed.</summary>
 		[Rpc.Owner]
 		private void RequestResync()
 		{
@@ -92,7 +102,7 @@ namespace Trce.Kernel.Net
 			OnResyncRequested?.Invoke( Network.Owner.SteamId );
 		}
 
-		/// <summary> ? ?? ?? ??</summary>
+		/// <summary>Resets the round secret and desync counter at the start of a new round.</summary>
 		public void ResetForNewRound()
 		{
 			if ( !(_bridge?.IsServer ?? false) ) return;
@@ -104,4 +114,3 @@ namespace Trce.Kernel.Net
 	}
 
 }
-

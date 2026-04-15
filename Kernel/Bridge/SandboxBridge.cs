@@ -16,9 +16,11 @@ using Sandbox.Network;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-
-using Trce.Kernel.Storage;
 using System.Threading.Tasks;
+
+using Trce.Kernel.Event;
+using Trce.Kernel.Plugin;
+using Trce.Kernel.Storage;
 
 namespace Trce.Kernel.Bridge
 {
@@ -30,7 +32,7 @@ namespace Trce.Kernel.Bridge
 	///   so that future s&amp;box API changes can be handled centrally here.
 	/// </summary>
 	[Title( "Sandbox Bridge" ), Group( "Trce - Kernel" ), Icon( "bridge" )]
-	public class SandboxBridge : GameObjectSystem, ISceneStartup
+	public class SandboxBridge : GameObjectSystem, ISceneStartup, ISandboxBridge
 	{
 		public static SandboxBridge Instance { get; private set; }
 
@@ -41,6 +43,12 @@ namespace Trce.Kernel.Bridge
 
 		public void OnLevelLoaded()
 		{
+			// Purge all stale delegates before any plugin re-subscribes in the new scene.
+			CoreEventsBus.ClearAllCoreEvents();
+
+			// Register with TrceServiceManager so plugins can resolve via GetService<ISandboxBridge>().
+			TrceServiceManager.Instance?.RegisterService<ISandboxBridge>( this );
+
 			Log.Info( " " );
 			Log.Info( "============================================" );
 			Log.Info( ">> TRCE KERNEL: SANDBOX BRIDGE IS NOW ACTIVE" );

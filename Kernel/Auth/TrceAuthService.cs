@@ -1,9 +1,11 @@
 using Sandbox;
 using Sandbox.Network;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Trce.Kernel.Bridge;
+using Trce.Kernel.Plugin;
 
 namespace Trce.Kernel.Auth
 {
@@ -11,11 +13,11 @@ namespace Trce.Kernel.Auth
 	/// TRCE Auth Service
 	/// </summary>
 	[Title( "TRCE Auth Service" ), Group( "Trce - Kernel" ), Icon( "security" )]
-	public class TrceAuthService : GameObjectSystem, ISceneStartup
+	public class TrceAuthService : GameObjectSystem, ISceneStartup, IAuthService
 	{
 		public static TrceAuthService Instance { get; private set; }
 
-		private Dictionary<ulong, PlayerSession> sessions = new();
+		private ConcurrentDictionary<ulong, PlayerSession> sessions = new();
 		private RealTimeSince timeSinceCleanup = 0;
 		private const float CleanupIntervalSeconds = 30f;
 
@@ -33,6 +35,9 @@ namespace Trce.Kernel.Auth
 			{
 				return;
 			}
+
+			// Register with TrceServiceManager so plugins can resolve via GetService<IAuthService>().
+			TrceServiceManager.Instance?.RegisterService<IAuthService>( this );
 
 			_initTask = PermissionNode.InitializeAsync();
 		}
@@ -75,7 +80,7 @@ namespace Trce.Kernel.Auth
 					else
 					{
 						bridge.LogModule( "Auth", $"Session expired for {connection.DisplayName} ({steamId}), recreating." );
-						sessions.Remove( steamId );
+						sessions.TryRemove( steamId, out _ );
 					}
 				}
 				else
@@ -90,7 +95,7 @@ namespace Trce.Kernel.Auth
 			// Resolve user from storage (or create default)
 			session.PermissionUser = await PermissionNode.ResolveUserAsync( steamId );
 			
-			sessions.Add( steamId, session );
+			sessions.TryAdd( steamId, session );
 			bridge.LogModule( "Auth", $"Authenticated: {connection.DisplayName} ({steamId}) with {session.PermissionUser.Groups.Count} groups." );
 			return session;
 		}
@@ -142,13 +147,16 @@ namespace Trce.Kernel.Auth
 
 		private void CleanupExpiredSessions()
 		{
-			var expired = sessions.Where( kvp => kvp.Value.IsExpired ).Select( kvp => kvp.Key ).ToList();
-			foreach ( var steamId in expired )
+			// ConcurrentDictionary is safe to mutate during enumeration — no ToList() snapshot needed.
+			foreach ( var kvp in sessions )
 			{
-				var session = sessions[steamId];
-				SandboxBridge.Instance?.LogModule( "Auth",
-					$"Session expired and swept: {session.DisplayName} ({steamId})" );
-				sessions.Remove( steamId );
+				if ( !kvp.Value.IsExpired ) continue;
+
+				if ( sessions.TryRemove( kvp.Key, out var removed ) )
+				{
+					SandboxBridge.Instance?.LogModule( "Auth",
+						$"Session expired and swept: {removed.DisplayName} ({kvp.Key})" );
+				}
 			}
 		}
 

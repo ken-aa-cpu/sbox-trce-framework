@@ -2,6 +2,7 @@ using Sandbox;
 using System;
 using Trce.Kernel.Bridge;
 using Trce.Kernel.Event;
+using Trce.Kernel.Player;
 // 假設 CoreEvents 中的 struct 定義於此命名空間或類別下
 using static Trce.Kernel.Event.CoreEvents; 
 
@@ -109,8 +110,8 @@ namespace Trce.Plugins.Combat
 					currentSpread += definition.SpreadIncreasePerShot;
 				}
 
-				var owner = Components.GetInAncestorsOrSelf<Game.Player.TrcePlayer>();
-				if ( owner == null ) return;
+				var owner = Components.GetInAncestorsOrSelf<ITrcePlayer>();
+				if ( owner == null || !owner.IsValid ) return;
 
 				// 嚴格無 GC 射線檢測
 				var tr = Scene.Trace.Ray( origin, origin + direction * 5000f )
@@ -120,7 +121,7 @@ namespace Trce.Plugins.Combat
 
 				if ( tr.Hit && tr.GameObject != null )
 				{
-					var hitPlayer = tr.GameObject.Components.GetInAncestorsOrSelf<Game.Player.TrcePlayer>();
+					var hitPlayer = tr.GameObject.Components.GetInAncestorsOrSelf<ITrcePlayer>();
 					var hasHitbox = tr.Hitbox != null;
 
 					if ( hitPlayer != null || hasHitbox )
@@ -136,8 +137,8 @@ namespace Trce.Plugins.Combat
 		// 無 GC 開銷的傷害分派
 		private void ApplyDamage( GameObject targetObject, float damage, ulong shooterSteamId, Vector3 hitPos )
 		{
-			var targetPlayer = targetObject.Components.GetInAncestorsOrSelf<Game.Player.TrcePlayer>();
-			if ( targetPlayer == null ) return;
+			var targetPlayer = targetObject.Components.GetInAncestorsOrSelf<ITrcePlayer>();
+			if ( targetPlayer == null || !targetPlayer.IsValid ) return;
 
 			// 使用 EventBus 即時分派受傷事件 (修正：使用 Struct 建構子並由 SandboxBridge 取得正確網路識別碼)
 			var targetEventBus = targetObject.Components.GetInAncestorsOrSelf<EntityEventBus>();

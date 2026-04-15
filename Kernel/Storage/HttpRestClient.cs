@@ -1,9 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Net.Http;
 using Sandbox;
-using System.Linq;
 
 namespace Trce.Kernel.Storage
 {
@@ -24,11 +24,23 @@ namespace Trce.Kernel.Storage
 		/// <summary>
 		/// Performs an asynchronous HTTP GET request and deserializes the JSON response.
 		/// </summary>
-		public static async Task<T> GetAsync<T>( string url )
+		/// <typeparam name="T">The type to deserialize the response into.</typeparam>
+		/// <param name="url">The target URL (must NOT contain auth credentials).</param>
+		/// <param name="headers">Optional request headers, e.g. Authorization.</param>
+		public static async Task<T> GetAsync<T>( string url, Dictionary<string, string> headers = null )
 		{
 			try
 			{
-				string responseString = await Http.RequestStringAsync( url );
+				// In s&box, we can't send a raw HttpRequestMessage to Http.RequestAsync.
+				// We use an empty content object to attach headers.
+				using var content = new ByteArrayContent( Array.Empty<byte>() );
+				
+				if ( headers != null )
+					foreach ( var kv in headers )
+						content.Headers.TryAddWithoutValidation( kv.Key, kv.Value );
+
+				var response = await Http.RequestAsync( url, "GET", content );
+				var responseString = await response.Content.ReadAsStringAsync();
 
 				if ( string.IsNullOrWhiteSpace( responseString ) )
 				{
@@ -48,16 +60,25 @@ namespace Trce.Kernel.Storage
 		/// <summary>
 		/// Performs an asynchronous HTTP PUT request with JSON payload.
 		/// </summary>
-		public static async Task<bool> PutAsync<T>( string url, T data )
+		/// <typeparam name="T">The type of data to serialize and send.</typeparam>
+		/// <param name="url">The target URL (must NOT contain auth credentials).</param>
+		/// <param name="data">The data to PUT.</param>
+		/// <param name="headers">Optional request headers, e.g. Authorization.</param>
+		public static async Task<bool> PutAsync<T>( string url, T data, Dictionary<string, string> headers = null )
 		{
 			try
 			{
-				var jsonContent = JsonSerializer.Serialize( data, _jsonOptions );
-				
 				// Use native sbox Http.CreateJsonContent for the body
 				using var content = Sandbox.Http.CreateJsonContent( data );
+
+				if ( headers != null )
+				{
+					foreach ( var kv in headers )
+						content.Headers.TryAddWithoutValidation( kv.Key, kv.Value );
+				}
+
 				await Http.RequestAsync( url, "PUT", content );
-				
+
 				return true;
 			}
 			catch ( Exception ex )
@@ -70,11 +91,20 @@ namespace Trce.Kernel.Storage
 		/// <summary>
 		/// Performs an asynchronous HTTP DELETE request.
 		/// </summary>
-		public static async Task<bool> DeleteAsync( string url )
+		/// <param name="url">The target URL (must NOT contain auth credentials).</param>
+		/// <param name="headers">Optional request headers, e.g. Authorization.</param>
+		public static async Task<bool> DeleteAsync( string url, Dictionary<string, string> headers = null )
 		{
 			try
 			{
-				await Http.RequestAsync( "DELETE", url );
+				// Use empty content to attach headers for the DELETE request
+				using var content = new ByteArrayContent( Array.Empty<byte>() );
+				
+				if ( headers != null )
+					foreach ( var kv in headers )
+						content.Headers.TryAddWithoutValidation( kv.Key, kv.Value );
+
+				await Http.RequestAsync( url, "DELETE", content );
 				return true;
 			}
 			catch ( Exception ex )
@@ -85,4 +115,3 @@ namespace Trce.Kernel.Storage
 		}
 	}
 }
-

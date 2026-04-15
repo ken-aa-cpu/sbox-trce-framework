@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using Sandbox;
 
 namespace Trce.Kernel.Storage.Providers
@@ -18,7 +19,7 @@ namespace Trce.Kernel.Storage.Providers
 			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
 			WriteIndented = true
 		};
-		
+
 		private string _databaseUrl;
 		private string _authSecret;
 		private bool _isInitialized = false;
@@ -30,21 +31,21 @@ namespace Trce.Kernel.Storage.Providers
 		{
 			if ( _isInitialized )
 				return;
-				
+
 			if ( !Networking.IsHost )
 			{
 				Log.Warning( "[FirebaseStorageProvider] Init rejected: Only the server can load Firebase configuration." );
 				return;
 			}
-			
+
 			// Try to load server configuration
-			try 
+			try
 			{
 				if ( FileSystem.Data.FileExists( FirebaseConfigPath ) )
 				{
 					var configContent = FileSystem.Data.ReadAllText( FirebaseConfigPath );
 					var config = JsonSerializer.Deserialize<FirebaseConfig>( configContent, _jsonOptions );
-					
+
 					if ( config != null && !string.IsNullOrWhiteSpace( config.DatabaseUrl ) )
 					{
 						_databaseUrl = config.DatabaseUrl;
@@ -54,7 +55,7 @@ namespace Trce.Kernel.Storage.Providers
 						return;
 					}
 				}
-				
+
 				Log.Error( $"[FirebaseStorageProvider] Unable to initialize: Config invalid or missing at {FirebaseConfigPath}" );
 			}
 			catch ( Exception ex )
@@ -63,51 +64,60 @@ namespace Trce.Kernel.Storage.Providers
 			}
 		}
 
+		/// <summary>
+		/// Builds the Firebase REST URL for the given key.
+		/// Auth secret is NOT embedded in the URL — it is sent via the Authorization header only.
+		/// </summary>
 		private string BuildUrl( string key )
 		{
 			if ( string.IsNullOrEmpty( _databaseUrl ) ) return string.Empty;
-			
-			var url = $"{_databaseUrl.TrimEnd( '/' )}/{key}.json";
+			return $"{_databaseUrl.TrimEnd( '/' )}/{key}.json";
+		}
+
+		/// <summary>
+		/// Returns request headers containing the auth secret in the Authorization field.
+		/// Keeping it in the header (not the URL) prevents exposure in logs, proxies, and CDN records.
+		/// </summary>
+		private Dictionary<string, string> GetAuthHeaders()
+		{
+			var headers = new Dictionary<string, string>();
 			if ( !string.IsNullOrEmpty( _authSecret ) )
-			{
-				url += $"?auth={_authSecret}";
-			}
-			
-			return url;
+				headers["Authorization"] = $"Bearer {_authSecret}";
+			return headers;
 		}
 
 		/// <inheritdoc />
 		public async Task SaveAsync<T>( string key, T data )
 		{
 			Initialize();
-			
+
 			if ( !_isInitialized )
 			{
 				Log.Warning( $"[FirebaseStorageProvider] SaveAsync '{key}' aborted: Provider not initialized (No config/Host only)." );
 				return;
 			}
-			
+
 			var url = BuildUrl( key );
 			if ( string.IsNullOrEmpty( url ) ) return;
-			
-			await HttpRestClient.PutAsync( url, data );
+
+			await HttpRestClient.PutAsync( url, data, GetAuthHeaders() );
 		}
 
 		/// <inheritdoc />
 		public async Task<T> LoadAsync<T>( string key )
 		{
 			Initialize();
-			
+
 			if ( !_isInitialized )
 			{
 				Log.Warning( $"[FirebaseStorageProvider] LoadAsync '{key}' aborted: Provider not initialized (No config/Host only)." );
 				return default;
 			}
-			
+
 			var url = BuildUrl( key );
 			if ( string.IsNullOrEmpty( url ) ) return default;
 
-			return await HttpRestClient.GetAsync<T>( url );
+			return await HttpRestClient.GetAsync<T>( url, GetAuthHeaders() );
 		}
 
 		/// <inheritdoc />
@@ -121,19 +131,19 @@ namespace Trce.Kernel.Storage.Providers
 		public async Task DeleteAsync( string key )
 		{
 			Initialize();
-			
+
 			if ( !_isInitialized )
 			{
 				Log.Warning( $"[FirebaseStorageProvider] DeleteAsync '{key}' aborted: Provider not initialized (No config/Host only)." );
 				return;
 			}
-			
+
 			var url = BuildUrl( key );
 			if ( string.IsNullOrEmpty( url ) ) return;
-			
-			await HttpRestClient.DeleteAsync( url );
+
+			await HttpRestClient.DeleteAsync( url, GetAuthHeaders() );
 		}
-		
+
 		private class FirebaseConfig
 		{
 			public string DatabaseUrl { get; set; }
@@ -141,4 +151,3 @@ namespace Trce.Kernel.Storage.Providers
 		}
 	}
 }
-

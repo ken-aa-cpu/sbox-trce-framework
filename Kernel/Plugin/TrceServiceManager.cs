@@ -5,7 +5,7 @@
 
 using Sandbox;
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 
 namespace Trce.Kernel.Plugin
 {
@@ -55,12 +55,8 @@ namespace Trce.Kernel.Plugin
 		/// 服務字典，以服務的公開合約類型 (Interface 或 Class) 為鍵，服務實例為值。
 		/// <para>注意：字典儲存 <c>object</c>，但所有查詢透過泛型進行，不會在 GetService 路徑上產生 Boxing。</para>
 		/// </summary>
-		private readonly Dictionary<Type, object> _services = new();
-
-		/// <summary>
-		/// 用於保護 <see cref="_services"/> 讀寫操作的鎖定物件，確保執行緒安全。
-		/// </summary>
-		private readonly object _lock = new();
+		// P2-B: 改用 ConcurrentDictionary — GetService 熱路徑無鎖讀取，_lock 已不再需要。
+		private readonly ConcurrentDictionary<Type, object> _services = new();
 
 		// ─────────────────────────────────────────────
 		//  建構子 & 生命週期
@@ -98,17 +94,11 @@ namespace Trce.Kernel.Plugin
 				throw new ArgumentNullException( nameof(serviceInstance), $"[TrceServiceManager] Cannot register a null instance for service '{typeof(T).Name}'." );
 
 			var serviceType = typeof(T);
+			var wasReplaced = _services.ContainsKey( serviceType );
+			_services[serviceType] = serviceInstance;  // ConcurrentDictionary indexer 是原子操作
 
-			lock ( _lock )
-			{
-				if ( _services.ContainsKey( serviceType ) )
-				{
-					// 覆蓋時輸出警告，方便開發者感知服務被替換
-					Log.Info( $"🔄 [TrceServiceManager] Service '{serviceType.Name}' is being REPLACED by a new instance. This is intentional if a plugin is upgrading the service." );
-				}
-
-				_services[serviceType] = serviceInstance;
-			}
+			if ( wasReplaced )
+				Log.Info( $"🔄 [TrceServiceManager] Service '{serviceType.Name}' is being REPLACED by a new instance. This is intentional if a plugin is upgrading the service." );
 
 			Log.Info( $"✅ [TrceServiceManager] Registered service: '{serviceType.Name}' → {serviceInstance.GetType().Name}" );
 		}
@@ -121,16 +111,8 @@ namespace Trce.Kernel.Plugin
 		/// <typeparam name="T">要移除的服務的公開合約類型。</typeparam>
 		public void UnregisterService<T>() where T : class
 		{
-			var serviceType = typeof(T);
-			bool removed;
-
-			lock ( _lock )
-			{
-				removed = _services.Remove( serviceType );
-			}
-
-			if ( removed )
-				Log.Info( $"🗑️ [TrceServiceManager] Unregistered service: '{serviceType.Name}'" );
+			if ( _services.TryRemove( typeof(T), out _ ) )
+				Log.Info( $"🗑️ [TrceServiceManager] Unregistered service: '{typeof(T).Name}'" );
 		}
 
 		/// <summary>
@@ -150,12 +132,8 @@ namespace Trce.Kernel.Plugin
 		/// </returns>
 		public T GetService<T>() where T : class
 		{
-			lock ( _lock )
-			{
-				// TryGetValue：O(1) 哈希查找，無 GC Allocation。
-				// 強制轉型至 T（引用類型）：無 Boxing，無 GC Allocation。
-				return _services.TryGetValue( typeof(T), out var raw ) ? (T)raw : null;
-			}
+			// P2-B: ConcurrentDictionary.TryGetValue 為無鎖讀取，O(1) 哈希查找，Zero-GC Allocation。
+			return _services.TryGetValue( typeof(T), out var raw ) ? (T)raw : null;
 		}
 
 		/// <summary>
@@ -164,10 +142,7 @@ namespace Trce.Kernel.Plugin
 		/// </summary>
 		public void ClearAll()
 		{
-			lock ( _lock )
-			{
-				_services.Clear();
-			}
+			_services.Clear();
 			Log.Info( "🧹 [TrceServiceManager] All services have been cleared." );
 		}
 	}

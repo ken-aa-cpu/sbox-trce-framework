@@ -5,6 +5,7 @@ using Sandbox;
 using System.Threading.Tasks;
 using Trce.Kernel.Auth;
 using Trce.Kernel.Event;
+using Trce.Kernel.Plugin;
 
 namespace Trce.Kernel.Net
 {
@@ -23,7 +24,7 @@ namespace Trce.Kernel.Net
 	/// </para>
 	/// </summary>
 	[Title( "TRCE Net Manager" ), Group( "Trce - Kernel" ), Icon( "wifi" )]
-	public class TrceNetManager : GameObjectSystem, ISceneStartup
+	public class TrceNetManager : GameObjectSystem, ISceneStartup, INetManager
 	{
 		// ═══════════════════════════════════════════════════════════════════
 		//  Singleton (GameObjectSystem 保證每個 Scene 僅有一個實例)
@@ -50,6 +51,8 @@ namespace Trce.Kernel.Net
 		/// <inheritdoc/>
 		public void OnSceneStartup()
 		{
+			// Register with TrceServiceManager so plugins can resolve via GetService<INetManager>().
+			TrceServiceManager.Instance?.RegisterService<INetManager>( this );
 			Log.Info( "[Net] TrceNetManager initialized." );
 		}
 

@@ -5,6 +5,7 @@ using System.Linq;
 using Trce.Kernel.Net;
 using Trce.Plugins.Shared.Evidence;
 using Trce.Kernel.Bridge;
+using Trce.Kernel.Player;
 
 namespace Trce.Plugins.Navigation
 
@@ -29,7 +30,7 @@ namespace Trce.Plugins.Navigation
 		public void OnTriggerEnter( Collider other )
 		{
 			if ( !(SandboxBridge.Instance?.IsServer ?? false) ) return;
-			var player = other.Components.GetInAncestorsOrSelf<Game.Player.TrcePlayer>();
+			var player = other.Components.GetInAncestorsOrSelf<ITrcePlayer>();
 			if ( player == null ) return;
 			playersInZone.Add( player.SteamId );
 			Log.Info( $"[Zone] {player.DisplayName} {ZoneName}" );
@@ -39,7 +40,7 @@ namespace Trce.Plugins.Navigation
 		public void OnTriggerExit( Collider other )
 		{
 			if ( !(SandboxBridge.Instance?.IsServer ?? false) ) return;
-			var player = other.Components.GetInAncestorsOrSelf<Game.Player.TrcePlayer>();
+			var player = other.Components.GetInAncestorsOrSelf<ITrcePlayer>();
 			if ( player == null ) return;
 			playersInZone.Remove( player.SteamId );
 			var collector = Scene.GetAllComponents<EvidenceCollector>().FirstOrDefault();
@@ -90,4 +91,3 @@ namespace Trce.Plugins.Navigation
 	}
 
 }
-

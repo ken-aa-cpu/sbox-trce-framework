@@ -1,4 +1,4 @@
-@using Sandbox;
+﻿@using Sandbox;
 @using Sandbox.UI;
 @using System.Collections.Generic;
 @using System;
@@ -10,6 +10,7 @@
 @using System.Linq;
 @using Trce.Kernel.Localization;
 @using Trce.Kernel.Bridge;
+@using Trce.Kernel.Player;
 @namespace Sandbox.UI
 @inherits Sandbox.UI.Panel
 
@@ -407,8 +408,10 @@
 			return;
 		}
 
-		var allPlayers = Scene.GetAllComponents<Trce.Game.Player.TrcePlayer>().ToList();
-		var localPlayer = allPlayers.FirstOrDefault( p => p.Network.IsOwner ) ?? allPlayers.FirstOrDefault();
+		var allPlayers = Scene.GetAllComponents<ITrcePlayer>().ToList();
+		var localSteamId = Connection.Local?.SteamId ?? 0ul;
+		var localPlayer = allPlayers.FirstOrDefault( p => p.SteamId == localSteamId && p.IsValid )
+		                  ?? allPlayers.FirstOrDefault( p => p.IsValid );
 		var manager = GetChatManager();
 		
 		if ( !string.IsNullOrWhiteSpace( InputBox.Text ) && manager != null && localPlayer != null )

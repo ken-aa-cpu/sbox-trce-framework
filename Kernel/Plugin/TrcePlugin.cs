@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Trce.Kernel.Event;
 using Trce.Kernel.SRE;
-using System.Linq;
 using Trce.Kernel.Command;
 
 namespace Trce.Kernel.Plugin
@@ -224,13 +223,11 @@ namespace Trce.Kernel.Plugin
 			if ( service is not null )
 				return service;
 
-			// 後備路徑：從場景中搜尋 (兼容尚未遷移到 ServiceManager 的舊系統)
-			// 注意：此路徑有 GC 分配開銷，應在正式環境中透過 RegisterService 消除
-			Log.Warning( $"⚠️ [{PluginId}] Service '{typeof(T).Name}' not found in TrceServiceManager. Falling back to Scene search. Consider registering this service on startup." );
-			return Scene.GetAllComponents<T>().FirstOrDefault();
-
-			// 注意：此處 FirstOrDefault() 需要 using System.Linq;
-			// 但為了保持 Zero-GC 理念，後備路徑已附帶警告提示開發者遷移
+			// P2-A: 不再回退到 Scene.GetAllComponents — 該呼叫會分配記憶體，破壞 Zero-GC 保證。
+			// 若服務未註冊，記錄一次警告並回傳 null，由呼叫者決定如何處理缺失的依賴。
+			Log.Warning( $"[{PluginId}] Service '{typeof(T).Name}' is not registered in TrceServiceManager. "
+			           + "Ensure the providing plugin is loaded and calls RegisterService in OnPluginEnabled." );
+			return null;
 		}
 
 		/// <summary>

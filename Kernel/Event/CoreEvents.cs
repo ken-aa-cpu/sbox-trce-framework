@@ -290,3 +290,45 @@ namespace Trce.Kernel.Event
 		}
 	}
 }
+
+namespace Trce.Kernel.Event
+{
+	/// <summary>
+	/// Companion helper that bulk-clears every known <see cref="CoreEvents"/> event type
+	/// from <see cref="GlobalEventBus"/> on scene transitions.
+	/// <para>
+	/// <b>Maintenance rule:</b> Whenever a new event struct is added to <see cref="CoreEvents"/>,
+	/// it must also be listed in <see cref="ClearAllCoreEvents"/>.
+	/// </para>
+	/// </summary>
+	public static class CoreEventsBus
+	{
+		/// <summary>
+		/// Clears all TRCE framework event subscriptions.
+		/// Call this in <c>SandboxBridge.OnLevelLoaded()</c> on every scene transition
+		/// to prevent stale delegates from firing on destroyed objects.
+		/// </summary>
+		public static void ClearAllCoreEvents()
+		{
+			// ── Combat ──────────────────────────────────────────────────────
+			GlobalEventBus.ClearAll<CoreEvents.PlayerDamagedEvent>();
+			GlobalEventBus.ClearAll<CoreEvents.WeaponFiredEvent>();
+			GlobalEventBus.ClearAll<CoreEvents.PlayerKilledEvent>();
+
+			// ── Interaction ──────────────────────────────────────────────────
+			GlobalEventBus.ClearAll<CoreEvents.InteractionTargetChangedEvent>();
+
+			// ── Health ───────────────────────────────────────────────────────
+			GlobalEventBus.ClearAll<CoreEvents.HealthChangedEvent>();
+
+			// ── Network / Connection ─────────────────────────────────────────
+			GlobalEventBus.ClearAll<CoreEvents.ClientReadyEvent>();
+			GlobalEventBus.ClearAll<CoreEvents.ClientDisconnectedEvent>();
+
+			// ── Attributes & State Tags ──────────────────────────────────────
+			GlobalEventBus.ClearAll<CoreEvents.AttributeChangedEvent>();
+			GlobalEventBus.ClearAll<CoreEvents.TagAddedEvent>();
+			GlobalEventBus.ClearAll<CoreEvents.TagRemovedEvent>();
+		}
+	}
+}
