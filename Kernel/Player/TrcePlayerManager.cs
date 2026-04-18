@@ -11,15 +11,20 @@ namespace Trce.Kernel.Player
 
 {
 	/// <summary>
-	///   TRCE 玩家管理系統：全局管理所有玩家狀態 (GameObjectSystem)
+	///   TRCE Player Manager: globally manages all player states (GameObjectSystem).
 	/// </summary>
-	public class TrcePlayerManager : GameObjectSystem, ISceneStartup
+	public class TrcePlayerManager : GameObjectSystem, ISceneStartup, IPlayerManagerService
 	{
 		public static TrcePlayerManager Instance { get; private set; }
 
 		private readonly Dictionary<ulong, TrcePlayerState> _registry = new();
 
-		// 事件定義保持不變，但改為靜態或透過 Instance 存取
+		// P0-3: Stores the paired unsubscription delegates so we have a matching
+		// Action reference to pass to GlobalEventBus.Unsubscribe, preventing memory leaks
+		// across scene reloads.
+		private Action _cleanup;
+
+		// Event definitions unchanged — accessed via static Instance or instance reference.
 		public event System.Action<TrcePlayerState> OnPlayerJoined;
 		public event System.Action<ulong> OnPlayerLeft;
 		public event System.Action<TrcePlayerState, float, float> OnHealthChanged;
@@ -37,9 +42,30 @@ namespace Trce.Kernel.Player
 
 		public void OnSceneStartup()
 		{
-			GlobalEventBus.Subscribe<CoreEvents.ClientReadyEvent>( HandlePlayerConnected );
-			GlobalEventBus.Subscribe<CoreEvents.ClientDisconnectedEvent>( HandlePlayerDisconnected );
+			// P0-3: Capture handler references as named delegates so the same reference
+			// can be passed to Unsubscribe, preventing memory leaks on scene reload.
+			Action<CoreEvents.ClientReadyEvent> h1 = HandlePlayerConnected;
+			Action<CoreEvents.ClientDisconnectedEvent> h2 = HandlePlayerDisconnected;
+			GlobalEventBus.Subscribe( h1 );
+			GlobalEventBus.Subscribe( h2 );
+			_cleanup = () =>
+			{
+				GlobalEventBus.Unsubscribe( h1 );
+				GlobalEventBus.Unsubscribe( h2 );
+			};
+			TrceServiceManager.Instance?.RegisterService<IPlayerManagerService>( this );
 			Log.Info( "[TrcePlayerManager] System initialized via GameObjectSystem." );
+		}
+
+		/// <summary>
+		/// Must be called from SandboxBridge.OnLevelLoaded() before the next scene initializes.
+		/// Unsubscribes all GlobalEventBus handlers to prevent stale delegates across scene reloads.
+		/// </summary>
+		public void Shutdown()
+		{
+			_cleanup?.Invoke();
+			_cleanup = null;
+			Log.Info( "[TrcePlayerManager] Shutdown — all event subscriptions removed." );
 		}
 
 		private void HandlePlayerConnected( CoreEvents.ClientReadyEvent e ) => OnPlayerConnected( e.SteamId, e.DisplayName );

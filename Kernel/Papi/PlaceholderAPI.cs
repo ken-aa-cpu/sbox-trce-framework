@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Sandbox;
+using Trce.Kernel.Plugin;
 
 namespace Trce.Kernel.Papi
 {
@@ -38,6 +39,11 @@ namespace Trce.Kernel.Papi
 			if ( IsGlobal )
 			{
 				globalInstance = this;
+
+				// P1-3: Also register in TrceServiceManager so GetService<IPlaceholderService>() can
+				// find this instance. TrcePlaceholderPlugin (if present) will overwrite this entry
+				// with its own registration — that is the intended "last-writer-wins" behaviour.
+				TrceServiceManager.Instance?.RegisterService<IPlaceholderService>( new PlaceholderAPIBridge( this ) );
 			}
 			Log.Info( $"[PAPI:{( IsGlobal ? "Global" : "Local" )}] Placeholder system initialized." );
 		}
@@ -168,6 +174,39 @@ namespace Trce.Kernel.Papi
 
 			return null;
 		}
+	}
+
+	// ═══════════════════════════════════════
+	//  P1-3: IPlaceholderService Bridge
+	// ═══════════════════════════════════════
+
+	/// <summary>
+	/// P1-3: Adapts the legacy <see cref="PlaceholderAPI"/> into the <see cref="IPlaceholderService"/> contract
+	/// so it can be registered in <see cref="TrceServiceManager"/> and resolved via
+	/// <c>GetService&lt;IPlaceholderService&gt;()</c>.
+	/// <para>
+	/// Only used when <see cref="TrcePlaceholderPlugin"/> is <i>not</i> present in the scene.
+	/// If both coexist, <see cref="TrcePlaceholderPlugin"/> will overwrite this entry on its own
+	/// <c>OnPluginEnabled()</c> call (last-writer-wins semantics).
+	/// </para>
+	/// </summary>
+	private sealed class PlaceholderAPIBridge : IPlaceholderService
+	{
+		private readonly PlaceholderAPI _api;
+		public PlaceholderAPIBridge( PlaceholderAPI api ) => _api = api;
+
+		public void RegisterProvider( string prefix, ITrcePlaceholderProvider provider )
+			=> _api.RegisterProvider( provider );
+
+		public void UnregisterProvider( string prefix )
+		{
+			// The legacy PlaceholderAPI does not organise providers by prefix,
+			// so prefix-based removal cannot be accurately performed through this bridge.
+			// Callers should prefer TrcePlaceholderPlugin which supports this operation natively.
+		}
+
+		public string Parse( string text, GameObject context = null )
+			=> PlaceholderAPI.Replace( context ?? _api.GameObject, text );
 	}
 }
 

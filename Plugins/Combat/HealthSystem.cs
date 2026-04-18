@@ -39,8 +39,8 @@ namespace Trce.Plugins.Combat
 		private Trce.Kernel.Bridge.SandboxBridge _bridge;
 		private Trce.Kernel.Bridge.SandboxBridge Bridge => _bridge ??= SandboxBridge.Instance;
 
-		private TrcePlayerManager _playerManager;
-		private TrcePlayerManager PlayerManager => _playerManager ??= Scene.Get<TrcePlayerManager>();
+		private IPlayerManagerService _playerManager;
+		private IPlayerManagerService PlayerManager => _playerManager ??= TrceServiceManager.Instance?.GetService<IPlayerManagerService>();
 
 		protected override Task OnPluginEnabled()
 		{

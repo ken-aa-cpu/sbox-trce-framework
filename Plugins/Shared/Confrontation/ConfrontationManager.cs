@@ -4,10 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Trce.Kernel.Net;
-using Trce.Plugins.Combat;
 using Trce.Plugins.Shared.Evidence;
-using Trce.Plugins.GameState;
 using Trce.Kernel.Plugin;
+using Trce.Kernel.Plugin.Services;
 using Trce.Kernel.Bridge;
 
 namespace Trce.Plugins.Shared.Confrontation
@@ -42,7 +41,7 @@ namespace Trce.Plugins.Shared.Confrontation
 		Version = "1.0.0",
 		Depends = new[] { "trce.gamestate.phase", "trce.death" }
 	)]
-	public class ConfrontationManager : TrcePlugin
+	public class ConfrontationManager : TrcePlugin, IConfrontationService
 	{
 
 		[Sync] public ConfrontationState CurrentState { get; private set; } = ConfrontationState.Inactive;
@@ -57,7 +56,7 @@ namespace Trce.Plugins.Shared.Confrontation
 
 		public Action<int> OnConfrontationStarted;
 		public Action<int> OnVotingStarted;
-		public Action<ulong, int, string> OnConfrontationResult;
+		public event Action<ulong, int, string> OnConfrontationResult;
 		public Action OnConfrontationEnded;
 
 		private List<PlayedCardEntry> playedCards = new();
@@ -69,6 +68,8 @@ namespace Trce.Plugins.Shared.Confrontation
 
 		protected override Task OnPluginEnabled()
 		{
+			// P0-2: Register as IConfrontationService so consumers resolve via interface.
+			TrceServiceManager.Instance?.RegisterService<IConfrontationService>( this );
 			return Task.CompletedTask;
 		}
 
@@ -116,7 +117,8 @@ namespace Trce.Plugins.Shared.Confrontation
 
 			Log.Info( $"[Confrontation:{GameObject.Name}] Confrontation Started (Threshold: {threshold}%)" );
 
-			Scene.GetAllComponents<GamePhaseManager>().FirstOrDefault()?.EnterConfrontation();
+			// P0-1/P0-2: Use IGamePhaseService instead of Scene.GetAllComponents<GamePhaseManager>()
+			( GetService<IGamePhaseService>() as dynamic )?.EnterConfrontation();
 
 			OnConfrontationStarted?.Invoke( threshold );
 		}
@@ -181,7 +183,9 @@ namespace Trce.Plugins.Shared.Confrontation
 			switch ( VoteEffect )
 			{
 				case "execute":
-					Scene.GetAllComponents<DeathManager>().FirstOrDefault()?.ProcessExecution( target );
+					// P0-2: Use IDeathManagerService instead of Scene.GetAllComponents<DeathManager>()
+					GetService<IDeathManagerService>()?.IsDeadOrGone( target ); // existence check
+					( GetService<IDeathManagerService>() as dynamic )?.ProcessExecution( target );
 					break;
 
 				case "seal":
@@ -198,7 +202,8 @@ namespace Trce.Plugins.Shared.Confrontation
 
 			Log.Info( $"[Confrontation:{GameObject.Name}] Confrontation Ended, Resuming Task Phase." );
 
-			Scene.GetAllComponents<GamePhaseManager>().FirstOrDefault()?.ResumeTaskPhase();
+			// P0-1/P0-2: Use IGamePhaseService instead of Scene.GetAllComponents<GamePhaseManager>()
+			( GetService<IGamePhaseService>() as dynamic )?.ResumeTaskPhase();
 
 			OnConfrontationEnded?.Invoke();
 		}
@@ -235,7 +240,7 @@ namespace Trce.Plugins.Shared.Confrontation
 			if ( !(Bridge?.IsServer ?? false) ) return;
 			if ( CurrentState != ConfrontationState.Voting ) return;
 
-			if ( !GhostCanVote && Scene.GetAllComponents<DeathManager>().FirstOrDefault()?.IsGhost( voterSteamId ) == true )
+			if ( !GhostCanVote && GetService<IDeathManagerService>()?.IsDeadOrGone( voterSteamId ) == true )
 				return;
 
 			if ( voterSteamId == targetSteamId ) return;

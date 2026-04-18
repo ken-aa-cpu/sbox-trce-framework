@@ -6,11 +6,29 @@ using System.Linq;
 using System.Threading.Tasks;
 using Trce.Kernel.Bridge;
 using Trce.Kernel.Plugin;
+using Trce.Kernel.SRE;
 
 namespace Trce.Kernel.Auth
 {
 	/// <summary>
-	/// TRCE Auth Service
+	/// <para>TRCE Auth Service — Session Manager</para>
+	/// <para>
+	/// <b>P1-5 Role Clarification:</b><br/>
+	/// <list type="bullet">
+	///   <item><description>
+	///     <b>TrceAuthService</b> (this class): Owns player <c>Session</c> lifecycle — connect, reconnect,
+	///     disconnect, expiry. Resolves and caches <see cref="TrcePermissionUser"/> on authentication.
+	///     Registers itself as <see cref="IAuthService"/>.
+	///   </description></item>
+	///   <item><description>
+	///     <b>TrceAuthPlugin</b>: Owns all runtime <c>Permission</c> checks (grant, revoke, wildcard,
+	///     inheritance). Registers itself as <see cref="IPermissionService"/>.
+	///   </description></item>
+	/// </list>
+	/// When both are present in a scene, <see cref="HasPermission"/> delegates to
+	/// <see cref="IPermissionService"/>, falling back to <see cref="PermissionNode"/> only if the
+	/// service is unavailable.
+	/// </para>
 	/// </summary>
 	[Title( "TRCE Auth Service" ), Group( "Trce - Kernel" ), Icon( "security" )]
 	public class TrceAuthService : GameObjectSystem, ISceneStartup, IAuthService
@@ -140,6 +158,13 @@ namespace Trce.Kernel.Auth
 
 		public bool HasPermission( ulong steamId, string permission )
 		{
+			// P1-5: Delegate to IPermissionService (TrceAuthPlugin) as the authoritative source.
+			// Fall back to PermissionNode only when TrceAuthPlugin is not loaded.
+			var permService = TrceServiceManager.Instance?.GetService<IPermissionService>();
+			if ( permService != null )
+				return permService.HasPermission( steamId, permission );
+
+			// Fallback: PermissionNode direct check (legacy path).
 			var session = GetSession( steamId );
 			if ( session?.PermissionUser == null ) return false;
 			return PermissionNode.HasPermission( session.PermissionUser, permission );
@@ -170,14 +195,37 @@ namespace Trce.Kernel.Auth
 		//  Admin Commands
 		// ═══════════════════════════════════════
 
+		// ═══════════════════════════════════════
+		//  Internal Async Safety Wrapper
+		// ═══════════════════════════════════════
+
+		/// <summary>
+		/// P1-1: Fire-and-forget guard for static ConCmd async calls.
+		/// Captures and reports exceptions via SreSystem instead of silently swallowing them.
+		/// </summary>
+		private static async void FireAndLog( System.Threading.Tasks.Task task, string context )
+		{
+			try
+			{
+				await task;
+			}
+			catch ( System.Exception ex )
+			{
+				var msg = $"[Auth] {context} failed: {ex.Message}";
+				Log.Error( msg );
+				if ( SreSystem.Instance != null )
+					await SreSystem.Instance.ReportError( "TrceAuthService", msg, ex.StackTrace );
+			}
+		}
+
 		[Sandbox.ConCmd( "trce_perm_reload" )]
 		public static void ReloadPermissions()
 		{
 			var bridge = SandboxBridge.Instance;
 			if ( bridge == null || !bridge.IsServer ) return;
 
-			_ = PermissionNode.InitializeAsync();
-			Log.Info( "[Auth] 權限資料已從儲存空間重新載入。" );
+			FireAndLog( PermissionNode.InitializeAsync(), "ReloadPermissions" );
+			Log.Info( "[Auth] Permission data reloaded from storage." );
 		}
 
 		[Sandbox.ConCmd( "trce_perm_user_addgroup" )]
@@ -188,11 +236,11 @@ namespace Trce.Kernel.Auth
 
 			if ( !ulong.TryParse( steamIdStr, out ulong steamId ) )
 			{
-				Log.Error( $"&c[Auth] 無效的 SteamID 格式: {steamIdStr}。須為數字型的 SteamID64。" );
+				Log.Error( $"&c[Auth] Invalid SteamID format: {steamIdStr}. Must be a numeric SteamID64." );
 				return;
 			}
 
-			_ = AddUserGroupAsync( steamId, groupName );
+			FireAndLog( AddUserGroupAsync( steamId, groupName ), "AddUserGroup" );
 		}
 
 		private static async Task AddUserGroupAsync( ulong steamId, string groupName )
@@ -209,11 +257,11 @@ namespace Trce.Kernel.Auth
 			{
 				user.Groups.Add( groupName );
 				await PermissionNode.SaveConfigAsync();
-				Log.Info( $@"[Auth] 已成功將使用者 {steamId} 加入群組 '{groupName}'。" );
+				Log.Info( $@"[Auth] Successfully added user {steamId} to group '{groupName}'." );
 			}
 			else
 			{
-				Log.Warning( $"[Auth] 使用者 {steamId} 已經是 '{groupName}' 的成員。" );
+				Log.Warning( $"[Auth] User {steamId} is already a member of '{groupName}'." );
 			}
 		}
 
@@ -225,11 +273,11 @@ namespace Trce.Kernel.Auth
 
 			if ( !ulong.TryParse( steamIdStr, out ulong steamId ) )
 			{
-				Log.Error( $"&c[Auth] 無效的 SteamID 格式: {steamIdStr}。須為數字型的 SteamID64。" );
+				Log.Error( $"&c[Auth] Invalid SteamID format: {steamIdStr}. Must be a numeric SteamID64." );
 				return;
 			}
 
-			_ = AddUserNodeAsync( steamId, node );
+			FireAndLog( AddUserNodeAsync( steamId, node ), "AddUserNode" );
 		}
 
 		private static async Task AddUserNodeAsync( ulong steamId, string node )
@@ -245,11 +293,11 @@ namespace Trce.Kernel.Auth
 			{
 				user.Nodes.Add( node );
 				await PermissionNode.SaveConfigAsync();
-				Log.Info( $@"[Auth] 已成功將節點 '{node}' 加入使用者 {steamId}。" );
+				Log.Info( $@"[Auth] Successfully added node '{node}' to user {steamId}." );
 			}
 			else
 			{
-				Log.Warning( $"[Auth] 使用者 {steamId} 已經擁有節點 '{node}'。" );
+				Log.Warning( $"[Auth] User {steamId} already has node '{node}'." );
 			}
 		}
 		[Sandbox.ConCmd( "trce_perm_group_create" )]
@@ -258,20 +306,20 @@ namespace Trce.Kernel.Auth
 			var bridge = SandboxBridge.Instance;
 			if ( bridge == null || !bridge.IsServer ) return;
 
-			_ = CreateGroupAsync( name, weight );
+			FireAndLog( CreateGroupAsync( name, weight ), "CreateGroup" );
 		}
 
 		private static async Task CreateGroupAsync( string name, int weight )
 		{
 			if ( PermissionNode.AllGroups.Any( g => g.Name == name ) )
 			{
-				Log.Warning( $"[Auth] 群組 '{name}' 已經存在。" );
+				Log.Warning( $"[Auth] Group '{name}' already exists." );
 				return;
 			}
 
 			PermissionNode.AllGroups.Add( new TrcePermissionGroup { Name = name, Weight = weight } );
 			await PermissionNode.SaveConfigAsync();
-			Log.Info( $"[Auth] 已建立群組 '{name}'，權重為 {weight}。" );
+			Log.Info( $"[Auth] Created group '{name}' with weight {weight}." );
 		}
 
 		[Sandbox.ConCmd( "trce_perm_group_addnode" )]
@@ -280,7 +328,7 @@ namespace Trce.Kernel.Auth
 			var bridge = SandboxBridge.Instance;
 			if ( bridge == null || !bridge.IsServer ) return;
 
-			_ = AddGroupNodeAsync( groupName, node );
+			FireAndLog( AddGroupNodeAsync( groupName, node ), "AddGroupNode" );
 		}
 
 		private static async Task AddGroupNodeAsync( string groupName, string node )
@@ -288,7 +336,7 @@ namespace Trce.Kernel.Auth
 			var group = PermissionNode.AllGroups.FirstOrDefault( g => g.Name == groupName );
 			if ( group == null )
 			{
-				Log.Error( $"&c[Auth] 找不到群組 '{groupName}'。" );
+				Log.Error( $"&c[Auth] Group '{groupName}' not found." );
 				return;
 			}
 
@@ -305,30 +353,30 @@ namespace Trce.Kernel.Auth
 		{
 			if ( !ulong.TryParse( steamIdStr, out ulong steamId ) )
 			{
-				Log.Error( $"&c[Auth] 無效的 SteamID 格式: {steamIdStr}。須為數字型的 SteamID64。" );
+				Log.Error( $"&c[Auth] Invalid SteamID format: {steamIdStr}. Must be a numeric SteamID64." );
 				return;
 			}
 
 			var user = PermissionNode.AllUsers.FirstOrDefault( u => u.SteamId == steamId );
 			if ( user == null )
 			{
-				Log.Error( $"&c[Auth] 使用者 {steamId} 目前沒有特定權限記錄。" );
+				Log.Error( $"&c[Auth] User {steamId} has no specific permission records." );
 				return;
 			}
 
-			Log.Info( $"=== 使用者 {steamId} 的權限資訊 ===" );
-			Log.Info( $"群組 (Groups): {string.Join( ", ", user.Groups )}" );
-			Log.Info( $"節點 (Nodes): {string.Join( ", ", user.Nodes )}" );
+			Log.Info( $"=== Permission info for user {steamId} ===" );
+			Log.Info( $"Groups: {string.Join( ", ", user.Groups )}" );
+			Log.Info( $"Nodes: {string.Join( ", ", user.Nodes )}" );
 		}
 
 		[Sandbox.ConCmd( "trce_perm_list" )]
 		public static void ListAllPermissions()
 		{
-			Log.Info( "=== 已註冊的權限群組 (Permission Groups) ===" );
+			Log.Info( "=== Registered Permission Groups ===" );
 			foreach ( var group in PermissionNode.AllGroups )
 			{
-				Log.Info( $"群組: {group.Name} (權重: {group.Weight})" );
-				Log.Info( $"  節點: {string.Join( ", ", group.Nodes )}" );
+				Log.Info( $"Group: {group.Name} (weight: {group.Weight})" );
+				Log.Info( $"  Nodes: {string.Join( ", ", group.Nodes )}" );
 			}
 		}
 	}

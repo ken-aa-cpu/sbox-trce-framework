@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Trce.Kernel.Net;
 using Trce.Kernel.Plugin;
+using Trce.Kernel.Plugin.Services;
 using Trce.Kernel.Bridge;
 
 namespace Trce.Plugins.GameState
@@ -18,24 +19,28 @@ namespace Trce.Plugins.GameState
 		Version = "2.0.0",
 		Depends = new[] { "trce.gamestate.phase" }
 	)]
-	public class TaskProgressTracker : TrcePlugin
+	public class TaskProgressTracker : TrcePlugin, ITaskProgressService
 	{
 		public Action<float> OnProgressUpdated;
-		
+
 		[Sync(SyncFlags.FromHost), Property, ReadOnly]
 		public float Progress { get; private set; } = 0f;
-		
-		public Action OnProgressReached100;
-		public Action<ulong, string, string> OnTaskCompleted;
-		
+
+		// ITaskProgressService events
+		public event Action OnProgressReached100;
+		public event Action<ulong, string, string> OnTaskCompleted;
+
 		[Property, Group("Triggers")]
 		public List<TaskThresholdAction> ThresholdActions { get; set; } = new();
-		
+
 		private HashSet<string> triggeredIds = new();
 		private readonly List<ITrceTask> roomTasks = new();
 
 		protected override async Task OnPluginEnabled()
 		{
+			// P0-2: Register as ITaskProgressService so consumers resolve via interface.
+			TrceServiceManager.Instance?.RegisterService<ITaskProgressService>( this );
+			await Task.CompletedTask;
 		}
 
 		protected override void OnPluginDisabled()

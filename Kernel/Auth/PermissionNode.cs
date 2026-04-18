@@ -48,6 +48,18 @@ namespace Trce.Kernel.Auth
 		}
 
 		/// <summary>
+		/// P0-5: Clears all static state so the next scene starts with a clean slate.
+		/// Must be called from SandboxBridge.OnLevelLoaded() before InitializeAsync().
+		/// </summary>
+		public static void ResetStatic()
+		{
+			_allGroups = new();
+			_allUsers = new();
+			_initialized = false;
+			Log.Info( "[PermissionNode] Static state cleared for new scene." );
+		}
+
+		/// <summary>
 		/// Initializes permission groups and users from JSON files using TrceStorageService.
 		/// </summary>
 		public static async Task InitializeAsync()

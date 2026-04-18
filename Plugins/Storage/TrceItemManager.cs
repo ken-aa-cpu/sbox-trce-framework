@@ -17,7 +17,7 @@ namespace Trce.Plugins.Storage
 	///   - Dispatches OnUse / OnInteract callbacks
 	/// </summary>
 	[Title( "TRCE-Items Manager" ), Group( "Trce - Items" ), Icon( "inventory_2" )]
-	public class TrceItemManager : Component
+	public class TrceItemManager : Component, Trce.Kernel.Plugin.Services.IItemManagerService, ISceneStartup
 	{
 		public static TrceItemManager Instance { get; private set; }
 
@@ -32,7 +32,11 @@ namespace Trce.Plugins.Storage
 
 		protected override void OnAwake() => Instance = this;
 
-		protected override void OnStart() => LoadAllDefinitions();
+		public void OnSceneStartup()
+		{
+			Trce.Kernel.Plugin.Services.TrceServiceManager.Instance?.RegisterService<Trce.Kernel.Plugin.Services.IItemManagerService>( this );
+			LoadAllDefinitions();
+		}
 
 		// ═══════════════════════════════════════
 		//  Definition Management

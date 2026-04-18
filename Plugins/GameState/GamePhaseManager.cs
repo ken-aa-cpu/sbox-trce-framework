@@ -7,7 +7,7 @@ using Trce.Kernel.Bridge;
 using Trce.Kernel.Net;
 using Trce.Kernel.Security;
 using Trce.Kernel.Plugin;
-using Trce.Plugins.Combat;
+using Trce.Kernel.Plugin.Services;
 
 namespace Trce.Plugins.GameState
 {
@@ -36,18 +36,27 @@ namespace Trce.Plugins.GameState
 		Author = "TRCE Team"
 	)]
 	[Icon( "hourglass_empty" )]
-	public class GamePhaseManager : TrcePlugin
+	public class GamePhaseManager : TrcePlugin, IGamePhaseService
 	{
-		public Action<GamePhase, GamePhase, float> OnPhaseChanged;
+		// Explicit event declarations to satisfy IGamePhaseService contract
+		public event Action<GamePhaseEnum, GamePhaseEnum, float> OnPhaseChanged;
 
-		public Action<string, string> OnRoundEnded;
+		public event Action<string, string> OnRoundEnded;
 
 		// ====================================================================
 		//  Sync State
 		// ====================================================================
 
+		// IGamePhaseService exposes CurrentPhase typed as GamePhaseEnum.
+		// The internal GamePhase enum is kept for backward compatibility within the Plugins.GameState namespace.
 		[Sync(SyncFlags.FromHost), Property]
 		public GamePhase CurrentPhase { get; private set; } = GamePhase.Lobby;
+
+		// IGamePhaseService explicit implementation
+		GamePhaseEnum IGamePhaseService.CurrentPhase => (GamePhaseEnum)(int)CurrentPhase;
+
+		void IGamePhaseService.SwitchPhase( GamePhaseEnum newPhase, float duration )
+			=> SwitchPhase( (GamePhase)(int)newPhase, duration );
 
 		[Sync(SyncFlags.FromHost)]
 		public double PhaseStartTime { get; private set; }
@@ -80,17 +89,20 @@ namespace Trce.Plugins.GameState
 
 		protected override async Task OnPluginEnabled()
 		{
+			// P0-1: Register as IGamePhaseService so all consumers use the interface.
+			TrceServiceManager.Instance?.RegisterService<IGamePhaseService>( this );
+			await Task.CompletedTask;
 		}
 
 		protected override void OnStart()
 		{
-			var taskTracker = Scene.Get<TaskProgressTracker>();
+			var taskTracker = GetService<ITaskProgressService>();
 			if ( taskTracker != null )
 			{
 				taskTracker.OnProgressReached100 += OnProgressReached100;
 			}
 
-			var deathManager = Scene.Get<DeathManager>();
+			var deathManager = GetService<IDeathManagerService>();
 			if ( deathManager != null )
 			{
 				deathManager.OnAllKillersDead += () => EndRound( "crew", "KillersEliminated" );
@@ -107,7 +119,7 @@ namespace Trce.Plugins.GameState
 
 		protected override void OnPluginDisabled()
 		{
-			var taskTracker = Scene.Get<TaskProgressTracker>();
+			var taskTracker = GetService<ITaskProgressService>();
 			if ( taskTracker != null )
 			{
 				taskTracker.OnProgressReached100 -= OnProgressReached100;
@@ -163,7 +175,7 @@ namespace Trce.Plugins.GameState
 			};
 			GetPlugin<Social.ChatManager>()?.SendSystemMessage( $"&rPhase Transition -> {phaseName}" );
 
-			OnPhaseChanged?.Invoke( oldPhase, newPhase, duration );
+			OnPhaseChanged?.Invoke( (GamePhaseEnum)(int)oldPhase, (GamePhaseEnum)(int)newPhase, duration );
 		}
 
 		public void StartGame()
@@ -178,14 +190,15 @@ namespace Trce.Plugins.GameState
 		[ConCmd( "trce_admin_start", Help = "Force start TRCE round" )]
 		public static void CmdAdminStart()
 		{
-			var manager = Sandbox.Game.ActiveScene.Get<GamePhaseManager>();
+			// P0-1: Use IGamePhaseService via TrceServiceManager instead of Scene.Get<GamePhaseManager>()
+			var manager = TrceServiceManager.Instance?.GetService<IGamePhaseService>();
 			if ( manager != null )
 			{
 				manager.StartGame();
 			}
 			else
 			{
-				Log.Warning( "GamePhaseManager not found in scene!" );
+				Log.Warning( "IGamePhaseService not found — ensure GamePhaseManager plugin is active." );
 			}
 		}
 

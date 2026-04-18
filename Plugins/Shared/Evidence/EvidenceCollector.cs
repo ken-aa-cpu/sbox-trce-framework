@@ -35,26 +35,26 @@ namespace Trce.Plugins.Shared.Evidence
 
 		protected override void OnStart()
 		{
-			var taskTracker = Scene.Get<TaskProgressTracker>();
+			var taskTracker = GetService<ITaskProgressService>();
 			if ( taskTracker != null )
 				taskTracker.OnTaskCompleted += HandleTaskCompleted;
 
-			var deathManager = Scene.Get<DeathManager>();
+			var deathManager = GetService<IDeathManagerService>();
 			if ( deathManager != null )
 				deathManager.OnPlayerKilled += HandlePlayerKilled;
 
-			var roundLifecycle = Scene.Get<RoundLifecycle>();
+			var roundLifecycle = GetService<IRoundLifecycleService>();
 			if ( roundLifecycle != null )
 				roundLifecycle.OnRoundStarted += ( _ ) => ResetAll();
 		}
 
 		protected override void OnPluginDisabled()
 		{
-			var taskTracker = Scene.Get<TaskProgressTracker>();
+			var taskTracker = GetService<ITaskProgressService>();
 			if ( taskTracker != null )
 				taskTracker.OnTaskCompleted -= HandleTaskCompleted;
 
-			var deathManager = Scene.Get<DeathManager>();
+			var deathManager = GetService<IDeathManagerService>();
 			if ( deathManager != null )
 				deathManager.OnPlayerKilled -= HandlePlayerKilled;
 		}

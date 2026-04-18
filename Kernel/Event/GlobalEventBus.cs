@@ -7,61 +7,62 @@ using System.Threading;
 namespace Trce.Kernel.Event
 {
 	/// <summary>
-	/// <para>【Zero-Allocation 全域事件總線】</para>
+	/// <para>【Zero-Allocation Global Event Bus】</para>
 	/// <para>
-	/// 核心設計原理：利用 C# 靜態泛型類別 (Static Generic Class) 的特性。
-	/// 每一個唯一的 <typeparamref name="TEvent"/> 類型，CLR 會在 JIT 期間為其
-	/// 生成一個獨立的靜態類別實例，其中包含一個獨立的靜態 <see cref="Action{T}"/> 欄位。
+	/// Core design principle: exploits C# static generic class specialization.
+	/// For each unique <typeparamref name="TEvent"/> type, the CLR generates a separate
+	/// static class instance at JIT time, each containing its own independent static
+	/// <see cref="Action{T}"/> field.
 	/// </para>
 	/// <para>
-	/// <b>效能分析：</b><br/>
-	/// - <b>O(1) 派發：</b>事件分派無需任何字典查找 (Dictionary Lookup)。<br/>
-	/// - <b>零 Boxing：</b>泛型約束 <c>struct</c> 確保 Payload 永遠不會被裝箱到 Heap。<br/>
-	/// - <b>零字典開銷：</b>相比 <c>Dictionary&lt;Type, Delegate&gt;</c> 方案，完全消除雜湊計算、
-	///   記憶體跳轉，以及潛在的字典 resize 造成的 GC Allocation。<br/>
-	/// - <b>執行緒安全：</b><c>Subscribe</c> / <c>Unsubscribe</c> / <c>ClearAll</c> 採用
-	///   <see cref="Interlocked.CompareExchange{T}"/> CAS Loop 進行 lock-free 安全更新；
-	///   <c>Publish</c> 透過 <see cref="Volatile.Read{T}"/> 取得委派快照後呼叫，
-	///   確保不會讀到半更新狀態。
+	/// <b>Performance analysis:</b><br/>
+	/// - <b>O(1) dispatch:</b> no dictionary lookup required for event publication.<br/>
+	/// - <b>Zero boxing:</b> the <c>struct</c> constraint ensures payloads never get boxed to the Heap.<br/>
+	/// - <b>Zero dictionary overhead:</b> compared to a <c>Dictionary&lt;Type, Delegate&gt;</c> approach,
+	///   eliminates hash computation, memory indirection, and GC pressure from potential dictionary resizes.<br/>
+	/// - <b>Thread-safe:</b> <c>Subscribe</c> / <c>Unsubscribe</c> / <c>ClearAll</c> use a
+	///   <see cref="Interlocked.CompareExchange{T}"/> CAS loop for lock-free safe updates;
+	///   <c>Publish</c> reads the delegate snapshot directly (single game thread), preventing half-updated reads.
 	/// </para>
 	/// <para>
-	/// <b>禁止事項（Zero-Allocation 保證）：</b><br/>
-	/// - 在 <see cref="Publish{TEvent}"/> 路徑上，禁止任何 LINQ、<c>new</c> 運算子或裝箱操作。
+	/// <b>Restrictions (Zero-Allocation guarantee):</b><br/>
+	/// - Inside the <see cref="Publish{TEvent}"/> path: no LINQ, no <c>new</c> operator, no boxing operations.
 	/// </para>
 	/// </summary>
 	public static class GlobalEventBus
 	{
 		/// <summary>
-		/// 靜態泛型分配器，每個 <typeparamref name="TEvent"/> 對應一個獨立的靜態儲存槽。
-		/// CLR 保證：<c>EventDispatcher&lt;EventA&gt;.Handlers</c> 與
-		/// <c>EventDispatcher&lt;EventB&gt;.Handlers</c> 是完全獨立的靜態欄位。
-		/// 此設計實現了 O(1) 的完全無查找派發。
+		/// Static generic dispatcher — each <typeparamref name="TEvent"/> specialization has its own
+		/// independent static storage slot.
+		/// CLR guarantee: <c>EventDispatcher&lt;EventA&gt;.Handlers</c> and
+		/// <c>EventDispatcher&lt;EventB&gt;.Handlers</c> are completely separate static fields.
+		/// This design achieves O(1) fully lookup-free dispatch.
 		/// </summary>
-		/// <typeparam name="TEvent">必須是 struct 且實作 <see cref="ITrceEvent"/>。</typeparam>
+		/// <typeparam name="TEvent">Must be a struct implementing <see cref="ITrceEvent"/>.</typeparam>
 		private static class EventDispatcher<TEvent> where TEvent : struct, ITrceEvent
 		{
 			/// <summary>
-			/// 所有訂閱此事件類型的委派鏈。
-			/// static 欄位在 <c>EventDispatcher&lt;TEvent&gt;</c> 的每個泛型具現化中獨立存在。
+			/// Delegate chain for all subscribers of this event type.
+			/// The static field exists independently in each generic specialization of <c>EventDispatcher&lt;TEvent&gt;</c>.
 			/// </summary>
 			internal static Action<TEvent>? Handlers;
 		}
 
 		/// <summary>
-		/// 向全域事件總線訂閱一個事件。
-		/// <para>此操作是一次性 Delegate 組合成本，<b>不在熱路徑 (Hot Path) 上</b>。</para>
+		/// Subscribes a handler to the global event bus.
+		/// <para>This is a one-time delegate-combine cost — <b>not on the hot path</b>.</para>
 		/// </summary>
-		/// <typeparam name="TEvent">事件類型，必須是 <c>readonly struct</c> 且實作 <see cref="ITrceEvent"/>。</typeparam>
-		/// <param name="handler">事件觸發時呼叫的回呼函式。</param>
-		/// <exception cref="ArgumentNullException">當 <paramref name="handler"/> 為 null 時拋出。</exception>
+		/// <typeparam name="TEvent">The event type, must be a <c>readonly struct</c> implementing <see cref="ITrceEvent"/>.</typeparam>
+		/// <param name="handler">The callback to invoke when the event fires.</param>
+		/// <exception cref="ArgumentNullException">Thrown when <paramref name="handler"/> is null.</exception>
 		public static void Subscribe<TEvent>(Action<TEvent> handler)
 			where TEvent : struct, ITrceEvent
 		{
 			if (handler is null)
 				throw new ArgumentNullException(nameof(handler));
 
-			// CAS Loop：安全附加委派。
-			// 注意：s&box 白名單不允許 Volatile.Read，改為直接讀取（s&box 執行於單一遊戲執行緒）。
+			// CAS Loop: safely append the delegate.
+			// Note: s&box whitelist does not allow Volatile.Read — direct field read is fine (single game thread).
 			Action<TEvent>? current, updated;
 			do
 			{
@@ -73,18 +74,18 @@ namespace Trce.Kernel.Event
 		}
 
 		/// <summary>
-		/// 從全域事件總線取消訂閱一個事件。
-		/// <para>請確保傳入的 <paramref name="handler"/> 與訂閱時使用的是同一個委派實例，否則取消無效。</para>
+		/// Unsubscribes a handler from the global event bus.
+		/// <para>Make sure the <paramref name="handler"/> passed is the same delegate instance used during subscription, otherwise the unsubscription has no effect.</para>
 		/// </summary>
-		/// <typeparam name="TEvent">事件類型。</typeparam>
-		/// <param name="handler">要取消訂閱的回呼函式。</param>
+		/// <typeparam name="TEvent">The event type.</typeparam>
+		/// <param name="handler">The callback to remove.</param>
 		public static void Unsubscribe<TEvent>(Action<TEvent> handler)
 			where TEvent : struct, ITrceEvent
 		{
 			if (handler is null)
 				return;
 
-			// CAS Loop：安全移除委派（直接讀取欄位，Volatile.Read 不在 s&box 白名單內）。
+			// CAS Loop: safely remove the delegate (direct field read — Volatile.Read not on s&box whitelist).
 			Action<TEvent>? current, updated;
 			do
 			{
@@ -96,36 +97,36 @@ namespace Trce.Kernel.Event
 		}
 
 		/// <summary>
-		/// 向所有訂閱者發布一個事件。
+		/// Publishes an event to all subscribers.
 		/// <para>
-		/// <b>【Zero-Allocation 熱路徑 (Hot Path)】</b><br/>
-		/// 此方法在 100 人連線的伺服器環境下可安全地每幀呼叫。<br/>
-		/// - 無字典查找。<br/>
-		/// - 無 Boxing（<typeparamref name="TEvent"/> 受 <c>struct</c> 約束）。<br/>
-		/// - 無 LINQ。<br/>
-		/// - 無動態記憶體分配。
+		/// <b>【Zero-Allocation Hot Path】</b><br/>
+		/// Safe to call every frame on a server with 100 connected clients.<br/>
+		/// - No dictionary lookup.<br/>
+		/// - No boxing (<typeparamref name="TEvent"/> is constrained to <c>struct</c>).<br/>
+		/// - No LINQ.<br/>
+		/// - No dynamic memory allocation.
 		/// </para>
 		/// </summary>
-		/// <typeparam name="TEvent">事件類型。</typeparam>
-		/// <param name="eventData">要發布的事件資料（值類型，存在於 Stack 上）。</param>
+		/// <typeparam name="TEvent">The event type.</typeparam>
+		/// <param name="eventData">The event payload (value type, lives on the Stack).</param>
 		public static void Publish<TEvent>(TEvent eventData)
 			where TEvent : struct, ITrceEvent
 		{
-			// eventData 以值傳遞，不發生 Boxing。
-			// Volatile.Read 不在 s&box 白名單（SB1000），直接讀取欄位（單一遊戲執行緒）。
+			// eventData is passed by value — no boxing occurs.
+			// Volatile.Read is not on the s&box whitelist (SB1000); direct field read is used (single game thread).
 			EventDispatcher<TEvent>.Handlers?.Invoke(eventData);
 		}
 
 		/// <summary>
-		/// 清除特定事件類型的所有訂閱。
-		/// <para>通常在場景/遊戲模式切換時呼叫，用於防止 Stale Delegate 問題。</para>
+		/// Clears all subscriptions for a specific event type.
+		/// <para>Typically called during scene or game-mode transitions to prevent stale delegate issues.</para>
 		/// </summary>
-		/// <typeparam name="TEvent">要清除的事件類型。</typeparam>
+		/// <typeparam name="TEvent">The event type to clear.</typeparam>
 		public static void ClearAll<TEvent>()
 			where TEvent : struct, ITrceEvent
 		{
-			// Interlocked.Exchange 確保寫入對所有執行緒立即可見，
-			// 且與 CAS Loop 的 CompareExchange 操作在同一原子層級上互斥。
+			// Interlocked.Exchange ensures the write is immediately visible to all threads,
+			// and is mutually exclusive with the CAS Loop's CompareExchange at the same atomic level.
 			Interlocked.Exchange(ref EventDispatcher<TEvent>.Handlers, null);
 		}
 	}

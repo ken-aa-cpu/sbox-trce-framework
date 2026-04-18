@@ -43,10 +43,22 @@ namespace Trce.Kernel.Bridge
 
 		public void OnLevelLoaded()
 		{
+			// P0-3: Unsubscribe stale TrcePlayerManager event delegates before the new scene starts.
+			Trce.Kernel.Player.TrcePlayerManager.Instance?.Shutdown();
+
 			// Purge all stale delegates before any plugin re-subscribes in the new scene.
 			CoreEventsBus.ClearAllCoreEvents();
 
-			// Register with TrceServiceManager so plugins can resolve via GetService<ISandboxBridge>().
+			// P2-2: Clear the service registry so stale registrations cannot bleed into the next scene.
+			TrceServiceManager.Instance?.ClearAll();
+
+			// P0-4: Clear server-side hit-validation dictionaries that persist across scenes.
+			Trce.Plugins.Combat.ServerHitValidator.ResetAll();
+
+			// P0-5: Clear stale PermissionNode static state so the next scene starts clean.
+			Trce.Kernel.Auth.PermissionNode.ResetStatic();
+
+			// Register this bridge first so subsequent systems can resolve it immediately.
 			TrceServiceManager.Instance?.RegisterService<ISandboxBridge>( this );
 
 			Log.Info( " " );
@@ -66,19 +78,20 @@ namespace Trce.Kernel.Bridge
 		public ulong LocalSteamId => Connection.Local?.SteamId ?? 0ul;
 
 		/// <summary>
-		/// 取得物件的全球唯一識別碼 (Guid)。
-		/// 因應 s&box API 更新，網路識別全面改用 GameObject.Id (Guid)。
+		/// Returns the globally unique identifier (Guid) of a GameObject.
+		/// In line with s&amp;box API updates, network identity now uses GameObject.Id (Guid) exclusively.
 		/// </summary>
 		public Guid GetObjectId( GameObject obj ) => obj?.Id ?? Guid.Empty;
 
 		/// <summary>
-		/// 取得物件的網路整數標識符 (為了向下相容既有事件結構而提供的雜湊值)。
-		/// 若情況允許，建議未來將所有網路傳遞的 ID 改為 Guid。
+		/// Returns the integer network identifier of a GameObject (a hash value provided for
+		/// backward-compatibility with existing event structures that use int IDs).
+		/// Where possible, migrate all network-transmitted IDs to Guid in future work.
 		/// </summary>
 		public int GetNetworkIdInt( GameObject obj ) => obj?.Id.GetHashCode() ?? -1;
 
 		/// <summary>
-		/// 取得物件的網路無號整數標識符。
+		/// Returns the unsigned integer network identifier of a GameObject.
 		/// </summary>
 		public uint GetNetworkIdUInt( GameObject obj ) => (uint)(obj?.Id.GetHashCode() ?? 0);
 

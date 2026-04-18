@@ -7,9 +7,10 @@ using Trce.Kernel.Plugin;
 namespace Trce.Kernel.SRE
 {
 	/// <summary>
-	/// SRE System：TRCE 框架的插件健康狀態監控系統。
-	/// 負責追蹤所有插件的啟動狀態，並在發生錯誤時統一記錄。
-	/// 由引擎自動為每個場景實例化。
+	/// SRE System: Plugin health-monitoring system for the TRCE framework.
+	/// Tracks startup state and cumulative error counts for all plugins,
+	/// and escalates alerts when a plugin exceeds the error threshold.
+	/// Automatically instantiated per scene by the engine.
 	/// </summary>
 	public class SreSystem : GameObjectSystem, ISceneStartup, ISreSystem
 	{
@@ -18,7 +19,19 @@ namespace Trce.Kernel.SRE
 		public System.Action OnDiagnosisStarted;
 		public System.Action<string> OnDiagnosisReceived;
 
+		/// <summary>Fired when a plugin's error count reaches the alert threshold.</summary>
+		/// <remarks>Parameters: (pluginId, errorCount)</remarks>
+		public static event Action<string, int> OnPluginErrorThresholdReached;
+
 		private readonly ConcurrentDictionary<string, DateTime> _activePlugins = new();
+
+		/// <summary>P1-2: Tracks cumulative error count per plugin source.</summary>
+		private readonly ConcurrentDictionary<string, int> _errorCounts = new();
+
+		/// <summary>
+		/// P1-2: The number of errors from a single plugin source that triggers an escalated alert.
+		/// </summary>
+		private const int ErrorThreshold = 5;
 
 		public SreSystem( Scene scene ) : base( scene )
 		{
@@ -39,32 +52,67 @@ namespace Trce.Kernel.SRE
 		}
 
 		/// <summary>
-		/// 插件啟動時向 SRE 報到，記錄插件 ID 與版本。
-		/// 由 TrcePlugin.InitializeAsync() 自動呼叫，不需手動呼叫。
+		/// Called by a plugin at startup to register its ID and version with SRE.
+		/// Invoked automatically by <c>TrcePlugin.InitializeAsync()</c> — do not call manually.
 		/// </summary>
 		public void CheckIn( string pluginId, string version )
 		{
 			_activePlugins[pluginId] = DateTime.Now;
+			// Reset error counter on successful check-in (plugin restarted cleanly).
+			_errorCounts.TryRemove( pluginId, out _ );
 			Log.Info( $"[SRE] Plugin check-in: {pluginId} (v{version})" );
 		}
 
 		/// <summary>
-		/// 插件發生錯誤時向 SRE 報告，統一記錄錯誤來源與訊息。
-		/// 由 TrcePlugin.SafeExecute() 自動呼叫，不需手動呼叫。
+		/// P1-2: Reports an error from a plugin and records the source and message centrally.
+		/// When the error count exceeds <see cref="ErrorThreshold"/>, escalates to an Error-level log
+		/// and fires <see cref="OnPluginErrorThresholdReached"/> for external handling (e.g. auto-restart).
+		/// Invoked automatically by <c>TrcePlugin.SafeExecute()</c> / <c>SafeExecuteAsync()</c> — do not call manually.
 		/// </summary>
 		public System.Threading.Tasks.Task ReportError( string source, string message, string stackTrace )
 		{
-			Log.Error( $"[SRE] Error from '{source}': {message}" );
+			// Increment error counter for this source.
+			int newCount = _errorCounts.AddOrUpdate( source, 1, ( _, old ) => old + 1 );
+
+			Log.Error( $"[SRE] Error from '{source}' (total: {newCount}): {message}" );
 
 			if ( !string.IsNullOrEmpty( stackTrace ) )
 				Log.Error( $"[SRE] Stack trace:\n{stackTrace}" );
+
+			// P1-2: Escalate when error count hits threshold.
+			if ( newCount >= ErrorThreshold )
+			{
+				Log.Error( $"[SRE] ⚠️ HEALTH ALERT: Plugin '{source}' has accumulated {newCount} errors " +
+				           $"(threshold: {ErrorThreshold}). Consider restarting or disabling this plugin." );
+				OnPluginErrorThresholdReached?.Invoke( source, newCount );
+			}
 
 			return System.Threading.Tasks.Task.CompletedTask;
 		}
 
 		/// <summary>
-		/// 取得所有已啟動的插件 ID 清單。
+		/// Returns the list of all plugin IDs that have successfully checked in.
 		/// </summary>
 		public List<string> GetActivePlugins() => new List<string>( _activePlugins.Keys );
+
+		/// <summary>
+		/// Gets the current error count for the specified plugin source.
+		/// Returns 0 if no errors have been recorded.
+		/// </summary>
+		public int GetErrorCount( string source )
+		{
+			_errorCounts.TryGetValue( source, out int count );
+			return count;
+		}
+
+		/// <summary>
+		/// Resets the error counter for the specified plugin source.
+		/// Useful after a plugin has been manually recovered.
+		/// </summary>
+		public void ResetErrorCount( string source )
+		{
+			_errorCounts.TryRemove( source, out _ );
+			Log.Info( $"[SRE] Error count reset for plugin: '{source}'." );
+		}
 	}
 }

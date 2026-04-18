@@ -32,7 +32,7 @@ namespace Trce.Plugins.Finance
 		{
 			if ( player?.Network?.Owner == null ) return;
 			var steamId = player.Network.Owner.SteamId;
-			var state = Sandbox.Game.ActiveScene.Get<TrcePlayerManager>()?.GetPlayer( steamId );
+			var state = Trce.Kernel.Plugin.Services.TrceServiceManager.Instance?.GetService<Trce.Kernel.Plugin.Services.IPlayerManagerService>()?.GetPlayer( steamId );
 			if ( state == null ) return;
 
 			float oldHealth = state.Health;

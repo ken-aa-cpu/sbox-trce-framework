@@ -1,6 +1,7 @@
 using Sandbox;
 using System;
 using Trce.Kernel.Bridge;
+using Trce.Kernel.Event;
 using Trce.Kernel.Security;
 
 namespace Trce.Kernel.Net
@@ -63,8 +64,15 @@ namespace Trce.Kernel.Net
 		private string BuildStateString()
 		{
 			var rngSeed = _rng?.CurrentRoundSeed ?? 0;
-			// EventBus history removed - using simple time slice for fingerprint
-			return $"rng:{rngSeed}|time:{Math.Floor( Time.Now )}";
+
+			// P2-4: Publish a contribution event so any plugin can append its own deterministic
+			// state fragment (player counts, health hashes, round phase, etc.) to the fingerprint.
+			// This increases desync-detection entropy without coupling SnapshotSync to any plugin.
+			var collector = new SnapshotStateCollector();
+			GlobalEventBus.Publish( new Trce.Kernel.Event.CoreEvents.SnapshotStateContributionEvent( collector ) );
+
+			// Build the final fingerprint: baseline fields + all plugin contributions.
+			return $"rng:{rngSeed}|time:{Math.Floor( Time.Now )}|{collector.Build()}";
 		}
 
 		/// <summary>Signs the current state string and broadcasts it to all clients.</summary>

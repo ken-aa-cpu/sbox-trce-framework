@@ -6,13 +6,14 @@ using System.Collections.Generic;
 using System.Linq;
 using Trce.Kernel.Player;
 using Trce.Kernel.Plugin;
+using System.Threading.Tasks;
 
 using Trce.Kernel.Plugin.Services;
 
 namespace Trce.Plugins.Combat
 {
 	[Title( "Death Manager" ), Group( "Trce - Modules" )]
-	public class DeathManager : TrcePlugin
+	public class DeathManager : TrcePlugin, IDeathManagerService
 	{
 
 		// Local enum removed, using Trce.Kernel.Plugin.Services.AliveState
@@ -37,15 +38,22 @@ namespace Trce.Plugins.Combat
 		public Action<ulong, ulong, Vector3, string> OnPlayerDowned;
 		public Action<ulong, ulong> OnPlayerRevived;
 		public Action<ulong> OnPlayerExecuted;
-		public Action<ulong> OnPlayerEvacuated;
+		public event Action<ulong> OnPlayerEvacuated;
 
-		public Action OnAllKillersDead;
-		public Action OnAllCrewDead;
-		public Action OnAllCrewEvacuated;
+		public event Action OnAllKillersDead;
+		public event Action OnAllCrewDead;
+		public event Action OnAllCrewEvacuated;
 
 		protected override void OnAwake()
 		{
 			if ( processors.Count == 0 ) processors.Add( new DefaultLifeProcessor() );
+		}
+
+		protected override async Task OnPluginEnabled()
+		{
+			// P0-2: Register as IDeathManagerService so consumers resolve via interface.
+			TrceServiceManager.Instance?.RegisterService<IDeathManagerService>( this );
+			await Task.CompletedTask;
 		}
 
 		public bool Execute( LifeEventContext ctx )
@@ -55,7 +63,7 @@ namespace Trce.Plugins.Combat
 			if ( ctx.Cancelled ) return false;
 
 			playerStates[ctx.VictimId] = ctx.TargetState;
-			Scene.Get<TrcePlayerManager>()?.SetAliveState( ctx.VictimId, ctx.TargetState, ctx.InstigatorId );
+			TrceServiceManager.Instance?.GetService<IPlayerManagerService>()?.SetAliveState( ctx.VictimId, ctx.TargetState, ctx.InstigatorId );
 
 			foreach ( var p in processors ) p.OnPostProcess( this, ctx );
 			if ( (SandboxBridge.Instance?.IsServer ?? false) ) CheckWinConditions();

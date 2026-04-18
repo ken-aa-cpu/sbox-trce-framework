@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using Sandbox;
 using Trce.Kernel.Net;
 using Trce.Kernel.Plugin;
+using Trce.Kernel.Plugin.Services;
 using Trce.Kernel.Bridge;
 
 namespace Trce.Plugins.GameState
@@ -26,23 +27,28 @@ namespace Trce.Plugins.GameState
 		Version = "1.0.0",
 		Depends = new[] { "trce.gamestate.phase" }
 	)]
-	public class RoundLifecycle : TrcePlugin
+	public class RoundLifecycle : TrcePlugin, IRoundLifecycleService
 	{
 
-		public Action<int> OnRoundStarted;
+		// IRoundLifecycleService events
+		public event Action<int> OnRoundStarted;
 
-		public Action<int> OnRoundCleanedUp;
+		public event Action<int> OnRoundCleanedUp;
 
 		[Sync]
 		public int RoundNumber { get; private set; } = 0;
 
 		protected override async Task OnPluginEnabled()
 		{
+			// P0-2: Register as IRoundLifecycleService so consumers resolve via interface.
+			TrceServiceManager.Instance?.RegisterService<IRoundLifecycleService>( this );
+			await Task.CompletedTask;
 		}
 
 		protected override void OnStart()
 		{
-			var phaseMgr = Scene.Get<GamePhaseManager>();
+			// P0-1: resolve via IGamePhaseService instead of direct Scene.Get<GamePhaseManager>()
+			var phaseMgr = GetService<IGamePhaseService>();
 			if ( phaseMgr != null )
 			{
 				phaseMgr.OnPhaseChanged += HandlePhaseChanged;
@@ -51,7 +57,7 @@ namespace Trce.Plugins.GameState
 
 		protected override void OnPluginDisabled()
 		{
-			var phaseMgr = Scene.Get<GamePhaseManager>();
+			var phaseMgr = GetService<IGamePhaseService>();
 			if ( phaseMgr != null )
 			{
 				phaseMgr.OnPhaseChanged -= HandlePhaseChanged;
@@ -75,11 +81,13 @@ namespace Trce.Plugins.GameState
 
 			GetPlugin<TaskProgressTracker>()?.ResetProgress();
 
-			GetPlugin<GamePhaseManager>()?.ResetForNewRound();
+			// P0-1: Use IGamePhaseService instead of Scene.Get<GamePhaseManager>()
+			var phaseMgr = GetService<IGamePhaseService>();
+			phaseMgr?.ResetForNewRound();
 
 			OnRoundStarted?.Invoke( RoundNumber );
 
-			Scene.Get<GamePhaseManager>()?.StartGame();
+			phaseMgr?.StartGame();
 		}
 
 		public void CleanupRound()
@@ -95,15 +103,15 @@ namespace Trce.Plugins.GameState
 		// Event Handlers
 		// ====================================================================
 
-		private void HandlePhaseChanged( GamePhase oldPhase, GamePhase newPhase, float duration )
+		private void HandlePhaseChanged( GamePhaseEnum oldPhase, GamePhaseEnum newPhase, float duration )
 		{
 			if ( !(SandboxBridge.Instance?.IsServer ?? false) ) return;
 
-			if ( newPhase == GamePhase.EndRound )
+			if ( newPhase == GamePhaseEnum.EndRound )
 			{
 				Log.Info( "[RoundLifecycle] Round ending, preparing for cleanup." );
 			}
-			else if ( newPhase == GamePhase.Lobby )
+			else if ( newPhase == GamePhaseEnum.Lobby )
 			{
 				CleanupRound();
 			}

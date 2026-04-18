@@ -1,6 +1,6 @@
 // File: Code/Kernel/Plugin/TrcePlugin.cs
 // Encoding: UTF-8 (No BOM)
-// Phase 3: TRCE 插件標準基底類別。整合全域事件自動退訂 + 服務定位器。
+// Phase 3: TRCE standard plugin base class. Integrates automatic GlobalEvent unsubscription + service locator.
 
 using Sandbox;
 using System;
@@ -13,55 +13,55 @@ using Trce.Kernel.Command;
 namespace Trce.Kernel.Plugin
 {
 	/// <summary>
-	/// 插件的運行狀態。
+	/// The runtime state of a plugin.
 	/// </summary>
 	public enum PluginState
 	{
-		/// <summary>插件尚未載入或已停用。</summary>
+		/// <summary>The plugin has not been loaded yet or has been disabled.</summary>
 		Unloaded,
-		/// <summary>插件啟動時發生致命錯誤。</summary>
+		/// <summary>A fatal error occurred while starting the plugin.</summary>
 		Error,
-		/// <summary>插件正常運行中。</summary>
+		/// <summary>The plugin is running normally.</summary>
 		Enabled
 	}
 
 	/// <summary>
-	/// <para>【Phase 3 — TRCE 標準插件基底類別】</para>
+	/// <para>【Phase 3 — TRCE Standard Plugin Base Class】</para>
 	/// <para>
-	/// 所有業務模組 (例如 Inventory、Economy、Combat Plugin) 均必須繼承此類別。
-	/// 此基底類別提供標準化的生命週期管理、服務存取，以及最重要的——
-	/// <b>全域事件自動退訂機制</b>，從根本上杜絕 Memory Leak。
+	/// All business modules (e.g. Inventory, Economy, Combat Plugin) must inherit this class.
+	/// This base class provides standardized lifecycle management, service access, and most critically —
+	/// <b>automatic global event unsubscription</b> — preventing memory leaks at the source.
 	/// </para>
 	/// <para>
-	/// <b>生命週期流程：</b><br/>
-	/// <c>OnStart()</c> → <c>OnPluginEnabled()</c> (可覆寫，可非同步)<br/>
-	/// <c>OnDestroy()</c> → (自動退訂所有事件) → <c>OnPluginDisabled()</c> (可覆寫)<br/>
+	/// <b>Lifecycle flow:</b><br/>
+	/// <c>OnStart()</c> → <c>OnPluginEnabled()</c> (overridable, may be async)<br/>
+	/// <c>OnDestroy()</c> → (auto-unsubscribes all events) → <c>OnPluginDisabled()</c> (overridable)<br/>
 	/// </para>
 	/// <para>
-	/// <b>【防呆機制 — 零 Memory Leak 保證】</b><br/>
-	/// 使用 <see cref="RegisterEvent{TEvent}(Action{TEvent})"/> 訂閱事件，
-	/// 系統會在 <see cref="OnPluginDisabled"/> 觸發前自動呼叫所有對應的 Unsubscribe，
-	/// 開發者無需手動管理退訂，即使忘記也不會洩漏。
+	/// <b>【Failsafe — Zero Memory Leak Guarantee】</b><br/>
+	/// Use <see cref="RegisterEvent{TEvent}(Action{TEvent})"/> to subscribe to events.
+	/// The system automatically calls the corresponding Unsubscribe before <see cref="OnPluginDisabled"/> fires,
+	/// so developers never need to manage unsubscription manually — forgetting cannot cause a leak.
 	/// </para>
 	/// <para>
-	/// <b>使用範例：</b>
+	/// <b>Usage example:</b>
 	/// <code>
 	/// [TrcePlugin(Id = "game.inventory", Name = "Inventory", Version = "1.0.0")]
 	/// public class InventoryPlugin : TrcePlugin
 	/// {
 	///     protected override async Task OnPluginEnabled()
 	///     {
-	///         // 透過服務定位器取得依賴
+	///         // Resolve dependencies via service locator
 	///         var economy = GetService&lt;IEconomyService&gt;();
 	///
-	///         // 訂閱事件 — 系統保證在 Disable 時自動退訂，零洩漏
+	///         // Subscribe to events — system guarantees auto-unsubscription on Disable, zero leaks
 	///         RegisterEvent&lt;PlayerKilledEvent&gt;(OnPlayerKilled);
 	///         await Task.CompletedTask;
 	///     }
 	///
 	///     private void OnPlayerKilled(CoreEvents.PlayerKilledEvent e)
 	///     {
-	///         // 處理玩家死亡邏輯 ...
+	///         // Handle player death logic ...
 	///     }
 	/// }
 	/// </code>
@@ -71,50 +71,50 @@ namespace Trce.Kernel.Plugin
 	public abstract class TrcePlugin : Component
 	{
 		// ─────────────────────────────────────────────
-		//  公開屬性 (Public Properties)
+		//  Public Properties
 		// ─────────────────────────────────────────────
 
-		/// <summary>此插件的宣告式後設資料 (Metadata)，由 <see cref="TrcePluginAttribute"/> 提供。</summary>
+		/// <summary>Declarative metadata for this plugin, provided by <see cref="TrcePluginAttribute"/>.</summary>
 		public TrcePluginAttribute Info { get; internal set; }
 
-		/// <summary>插件當前的運行狀態。</summary>
+		/// <summary>Current runtime state of the plugin.</summary>
 		public PluginState State { get; internal set; } = PluginState.Unloaded;
 
-		/// <summary>插件的唯一識別碼。若未定義 <see cref="TrcePluginAttribute"/>，則回退至類別名稱。</summary>
+		/// <summary>Unique identifier for the plugin. Falls back to the class name if no <see cref="TrcePluginAttribute"/> is defined.</summary>
 		public string PluginId => Info?.Id ?? GetType().Name;
 
-		/// <summary>插件的版本號。</summary>
+		/// <summary>Version string of the plugin.</summary>
 		public string Version => Info?.Version ?? "1.0.0";
 
 		// ─────────────────────────────────────────────
-		//  【防呆核心】事件退訂動作清單
+		//  【Failsafe Core】 Event Unsubscription Action List
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 儲存所有由 <see cref="RegisterEvent{TEvent}(Action{TEvent})"/> 建立的退訂委派。
+		/// Stores all unsubscription delegates created by <see cref="RegisterEvent{TEvent}(Action{TEvent})"/>.
 		/// <para>
-		/// 每個元素是一個封裝了 <see cref="GlobalEventBus.Unsubscribe{TEvent}"/> 呼叫的 <see cref="Action"/>，
-		/// 持有對原始 handler 的引用，確保退訂精準對應訂閱。
+		/// Each element is an <see cref="Action"/> that encapsulates a <see cref="GlobalEventBus.Unsubscribe{TEvent}"/> call,
+		/// holding a reference to the original handler to ensure unsubscription matches the exact subscription.
 		/// </para>
 		/// <para>
-		/// 此列表只在初始化/銷毀階段被操作（非熱路徑），分配一次性的 closure 是可接受的。
+		/// This list is only modified during init/teardown (not on the hot path). Allocating one-time closures is acceptable.
 		/// </para>
 		/// </summary>
 		private readonly List<System.Action> _unsubscribeActions = new();
 
 		// ─────────────────────────────────────────────
-		//  生命週期 (Lifecycle)
+		//  Lifecycle
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// s&amp;box Component 啟動點。觸發非同步的插件啟用流程。
-		/// <para>通常由 <see cref="PluginBootstrapper"/> 透過 <see cref="InitializeAsync"/> 統一管理；
-		/// 若插件直接被加入場景，此方法作為後備啟動點。</para>
+		/// s&amp;box Component startup point. Triggers the async plugin-enable flow.
+		/// <para>Normally managed by <see cref="PluginBootstrapper"/> via <see cref="InitializeAsync"/>;
+		/// this method acts as a fallback start if the plugin is added to the scene directly.</para>
 		/// </summary>
 		protected override void OnStart()
 		{
-			// 直接啟動（非由 Bootstrapper 管理的場合）
-			// Bootstrapper 管理的場合會呼叫 InitializeAsync，內部同樣呼叫 OnPluginEnabled
+			// Direct start (not managed by Bootstrapper).
+			// Bootstrapper-managed flow calls InitializeAsync, which also calls OnPluginEnabled internally.
 			if ( State == PluginState.Unloaded )
 			{
 				_ = InitializeAsync();
@@ -122,11 +122,11 @@ namespace Trce.Kernel.Plugin
 		}
 
 		/// <summary>
-		/// s&amp;box Component 銷毀點。
+		/// s&amp;box Component destruction point.
 		/// <para>
-		/// <b>【自動防呆】</b>：在呼叫子類別的 <see cref="OnPluginDisabled"/> 之前，
-		/// 自動執行所有透過 <see cref="RegisterEvent{TEvent}(Action{TEvent})"/> 建立的退訂動作，
-		/// 確保不遺漏任何 Stale Delegate，徹底杜絕 Memory Leak。
+		/// <b>【Auto Failsafe】</b>: Before calling the subclass's <see cref="OnPluginDisabled"/>,
+		/// automatically executes all unsubscription actions registered via <see cref="RegisterEvent{TEvent}(Action{TEvent})"/>,
+		/// ensuring no stale delegates remain — completely preventing memory leaks.
 		/// </para>
 		/// </summary>
 		protected override void OnDestroy()
@@ -137,7 +137,7 @@ namespace Trce.Kernel.Plugin
 		}
 
 		/// <summary>
-		/// s&amp;box Component 啟用回呼。更新插件狀態。
+		/// s&amp;box Component enabled callback. Updates plugin state.
 		/// </summary>
 		protected override void OnEnabled()
 		{
@@ -145,7 +145,7 @@ namespace Trce.Kernel.Plugin
 		}
 
 		/// <summary>
-		/// s&amp;box Component 停用回呼。觸發插件停用流程（含自動退訂事件）。
+		/// s&amp;box Component disabled callback. Triggers plugin teardown (including auto event unsubscription).
 		/// </summary>
 		protected override void OnDisabled()
 		{
@@ -155,101 +155,101 @@ namespace Trce.Kernel.Plugin
 		}
 
 		// ─────────────────────────────────────────────
-		//  TRCE 標準生命週期虛擬方法
+		//  TRCE Standard Lifecycle Virtual Methods
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// <para>【可覆寫】插件啟用時呼叫的非同步初始化方法。</para>
-		/// <para>在此處進行服務查詢、資源載入、以及使用 <see cref="RegisterEvent{TEvent}(Action{TEvent})"/> 訂閱事件。</para>
+		/// <para>【Overridable】 Async initialization method called when the plugin is enabled.</para>
+		/// <para>Perform service lookups, resource loading, and event subscriptions via <see cref="RegisterEvent{TEvent}(Action{TEvent})"/> here.</para>
 		/// </summary>
-		/// <returns>代表非同步操作的 <see cref="Task"/>。</returns>
+		/// <returns>A <see cref="Task"/> representing the async operation.</returns>
 		protected virtual Task OnPluginEnabled() => Task.CompletedTask;
 
 		/// <summary>
-		/// <para>【可覆寫】插件停用時呼叫的清理方法。</para>
+		/// <para>【Overridable】 Cleanup method called when the plugin is disabled.</para>
 		/// <para>
-		/// <b>【防呆保證】</b>：所有透過 <see cref="RegisterEvent{TEvent}(Action{TEvent})"/> 訂閱的事件
-		/// 在此方法被呼叫之前已自動退訂完畢，子類別無需手動管理。
+		/// <b>【Failsafe Guarantee】</b>: All events subscribed via <see cref="RegisterEvent{TEvent}(Action{TEvent})"/>
+		/// are automatically unsubscribed before this method is called. Subclasses do not need to manage this manually.
 		/// </para>
 		/// </summary>
 		protected virtual void OnPluginDisabled() { }
 
 		// ─────────────────────────────────────────────
-		//  公開輔助方法 (Public Helper Methods)
+		//  Public Helper Methods
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// <para>【防呆事件訂閱】向 <see cref="GlobalEventBus"/> 訂閱一個全域事件，並自動追蹤退訂動作。</para>
+		/// <para>【Failsafe Event Subscription】 Subscribes to a global event via <see cref="GlobalEventBus"/> and automatically tracks the unsubscription action.</para>
 		/// <para>
-		/// <b>使用此方法取代直接呼叫 <see cref="GlobalEventBus.Subscribe{TEvent}(Action{TEvent})"/>。</b><br/>
-		/// 當此插件被銷毀或停用時，系統將自動為所有透過此方法訂閱的事件呼叫 Unsubscribe，
-		/// 即使子類別忘記手動退訂，也不會發生 Memory Leak 或 Stale Delegate 呼叫。
+		/// <b>Use this method instead of calling <see cref="GlobalEventBus.Subscribe{TEvent}(Action{TEvent})"/> directly.</b><br/>
+		/// When this plugin is destroyed or disabled, the system will automatically call Unsubscribe for all events registered this way,
+		/// preventing memory leaks or stale delegate calls even if the subclass forgets to unsubscribe.
 		/// </para>
 		/// <para>
-		/// <b>效能說明：</b>此方法的呼叫成本是一次性的初始化成本（非熱路徑），
-		/// 產生的 Lambda Closure 僅建立一次，生命週期與插件相同。
+		/// <b>Performance note:</b> The cost of this call is a one-time initialization cost (not on the hot path).
+		/// The Lambda closure is created once and lives as long as the plugin.
 		/// </para>
 		/// </summary>
-		/// <typeparam name="TEvent">事件類型，必須為 <c>readonly struct</c> 且實作 <see cref="ITrceEvent"/>。</typeparam>
-		/// <param name="handler">事件觸發時呼叫的處理委派，必須是實例方法（而非匿名 Lambda），以確保退訂精準。</param>
-		/// <exception cref="ArgumentNullException">當 <paramref name="handler"/> 為 null 時拋出。</exception>
+		/// <typeparam name="TEvent">The event type — must be a <c>readonly struct</c> implementing <see cref="ITrceEvent"/>.</typeparam>
+		/// <param name="handler">The handler delegate to call when the event fires. Must be an instance method (not an anonymous lambda) for accurate unsubscription.</param>
+		/// <exception cref="ArgumentNullException">Thrown when <paramref name="handler"/> is null.</exception>
 		protected void RegisterEvent<TEvent>( System.Action<TEvent> handler )
 			where TEvent : struct, ITrceEvent
 		{
 			if ( handler is null )
 				throw new ArgumentNullException( nameof(handler), $"[{PluginId}] Cannot register a null event handler for '{typeof(TEvent).Name}'." );
 
-			// 步驟 1: 向全域事件總線訂閱
+			// Step 1: Subscribe to the global event bus
 			GlobalEventBus.Subscribe<TEvent>( handler );
 
-			// 步驟 2: 封裝對應的退訂動作並儲存至追蹤列表
-			// 捕獲 handler 引用，確保退訂時使用完全相同的 Delegate 實例 (引用相等性)
+			// Step 2: Capture and store the matching unsubscription action.
+			// Captures the handler reference to ensure the exact same Delegate instance is used for unsubscription (reference equality).
 			_unsubscribeActions.Add( () => GlobalEventBus.Unsubscribe<TEvent>( handler ) );
 		}
 
 		/// <summary>
-		/// <para>【Zero-GC 服務查詢】透過 <see cref="TrceServiceManager"/> 安全地查詢一個已註冊的服務。</para>
+		/// <para>【Zero-GC Service Lookup】 Safely looks up a registered service via <see cref="TrceServiceManager"/>.</para>
 		/// <para>
-		/// 此方法取代了舊版本中硬編碼靜態 Instance 查詢模式，實現了真正的解耦。
-		/// 若服務未找到，靜默回傳 <c>null</c>，不拋出例外，由呼叫者決定如何處理缺失的依賴。
+		/// This method replaces the old hardcoded static Instance lookup pattern, achieving true decoupling.
+		/// If the service is not found, silently returns <c>null</c> without throwing — callers decide how to handle a missing dependency.
 		/// </para>
 		/// </summary>
-		/// <typeparam name="T">服務的公開合約類型 (Interface 或 Class)。</typeparam>
-		/// <returns>服務實例，或 <c>null</c>（若服務未被註冊）。</returns>
+		/// <typeparam name="T">The public contract type of the service (Interface or Class).</typeparam>
+		/// <returns>The service instance, or <c>null</c> if the service is not registered.</returns>
 		public T GetService<T>() where T : class
 		{
-			// 優先從 TrceServiceManager 查詢 — O(1) 字典查找，Zero-GC
+			// Prefer TrceServiceManager lookup — O(1) dictionary lookup, Zero-GC
 			var service = TrceServiceManager.Instance?.GetService<T>();
 			if ( service is not null )
 				return service;
 
-			// P2-A: 不再回退到 Scene.GetAllComponents — 該呼叫會分配記憶體，破壞 Zero-GC 保證。
-			// 若服務未註冊，記錄一次警告並回傳 null，由呼叫者決定如何處理缺失的依賴。
+			// P2-A: No longer falling back to Scene.GetAllComponents — that call allocates and breaks the Zero-GC guarantee.
+			// If the service is not registered, log a one-time warning and return null. Callers decide how to handle the missing dependency.
 			Log.Warning( $"[{PluginId}] Service '{typeof(T).Name}' is not registered in TrceServiceManager. "
 			           + "Ensure the providing plugin is loaded and calls RegisterService in OnPluginEnabled." );
 			return null;
 		}
 
 		/// <summary>
-		/// 透過 <see cref="PluginBootstrapper"/> 查詢場景中另一個已載入的 TRCE 插件實例。
+		/// Looks up another loaded TRCE plugin instance in the scene via <see cref="PluginBootstrapper"/>.
 		/// </summary>
-		/// <typeparam name="T">目標插件的類型，必須繼承 <see cref="TrcePlugin"/>。</typeparam>
-		/// <returns>插件實例，或 <c>null</c>（若插件未載入）。</returns>
+		/// <typeparam name="T">The target plugin type, must inherit <see cref="TrcePlugin"/>.</typeparam>
+		/// <returns>The plugin instance, or <c>null</c> if not loaded.</returns>
 		public T GetPlugin<T>() where T : TrcePlugin
 		{
 			return PluginBootstrapper.Instance?.GetPlugin<T>();
 		}
 
 		// ─────────────────────────────────────────────
-		//  框架內部方法 (Framework Internal)
+		//  Framework Internal
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// <para>【框架內部呼叫】由 <see cref="PluginBootstrapper"/> 在 Scene 啟動後統一呼叫，
-		/// 以確保依賴順序正確。</para>
-		/// <para>此方法同時向 SRE Guardian 報告插件狀態。</para>
+		/// <para>【Framework Internal】Called by <see cref="PluginBootstrapper"/> after the scene starts,
+		/// to ensure dependencies are resolved in the correct order.</para>
+		/// <para>This method also reports plugin state to the SRE Guardian.</para>
 		/// </summary>
-		/// <returns>代表非同步初始化操作的 <see cref="Task"/>。</returns>
+		/// <returns>A <see cref="Task"/> representing the async initialization operation.</returns>
 		public virtual async Task InitializeAsync()
 		{
 			try
@@ -266,11 +266,11 @@ namespace Trce.Kernel.Plugin
 		}
 
 		/// <summary>
-		/// <para>【防呆核心實作】遍歷 <see cref="_unsubscribeActions"/> 列表，
-		/// 呼叫每一個退訂委派，確保所有全域事件訂閱被清除。</para>
+		/// <para>【Failsafe Core Implementation】Iterates through <see cref="_unsubscribeActions"/>,
+		/// invoking each unsubscription delegate to clear all global event subscriptions.</para>
 		/// <para>
-		/// 此方法設計為<b>冪等 (Idempotent)</b>：呼叫後清空列表，
-		/// 防止重複退訂（例如 OnDisabled 後緊接著 OnDestroy 兩次觸發）。
+		/// This method is designed to be <b>idempotent</b>: the list is cleared after execution
+		/// to prevent double-unsubscription if both OnDisabled and OnDestroy fire in sequence.
 		/// </para>
 		/// </summary>
 		private void AutoUnsubscribeAll()
@@ -280,7 +280,7 @@ namespace Trce.Kernel.Plugin
 
 			Log.Info( $"🔌 [{PluginId}] Auto-unsubscribing {_unsubscribeActions.Count} event handler(s)..." );
 
-			// 使用 for 而非 foreach，避免 List<T> Enumerator 的 GC Allocation
+			// Use for instead of foreach to avoid List<T> Enumerator GC Allocation
 			for ( int i = 0; i < _unsubscribeActions.Count; i++ )
 			{
 				try
@@ -293,43 +293,43 @@ namespace Trce.Kernel.Plugin
 				}
 			}
 
-			// 清空列表，實現冪等性，防止 OnDisabled + OnDestroy 雙重觸發的重複退訂
+			// Clear the list to achieve idempotency, preventing double-unsubscription from OnDisabled + OnDestroy
 			_unsubscribeActions.Clear();
 
 			Log.Info( $"✅ [{PluginId}] All event handlers unsubscribed. Memory leak risk: ZERO." );
 		}
 
 		// ─────────────────────────────────────────────
-		//  指令輔助方法 (Command Helper Methods)
+		//  Command Helper Methods
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 向 <see cref="TrceCommandManager"/> 註冊一條指令。
+		/// Registers a command with <see cref="TrceCommandManager"/>.
 		/// </summary>
-		/// <param name="info">指令的宣告資訊。</param>
+		/// <param name="info">The command declaration info.</param>
 		protected void RegisterCommand( TrceCommandManager.CommandInfo info )
 		{
 			TrceCommandManager.Instance?.Register( info );
 		}
 
 		/// <summary>
-		/// 從 <see cref="TrceCommandManager"/> 移除一條已註冊的指令。
+		/// Removes a previously registered command from <see cref="TrceCommandManager"/>.
 		/// </summary>
-		/// <param name="name">指令名稱。</param>
+		/// <param name="name">The command name.</param>
 		protected void UnregisterCommand( string name )
 		{
 			TrceCommandManager.Instance?.Unregister( name );
 		}
 
 		// ─────────────────────────────────────────────
-		//  錯誤處理輔助方法
+		//  Error Handling Helpers
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 以安全方式執行一個動作，並在發生例外時自動向 SRE Guardian 報告。
+		/// Safely executes an action and automatically reports any exception to the SRE Guardian.
 		/// </summary>
-		/// <param name="action">要安全執行的動作。</param>
-		/// <param name="context">描述執行情境的字串，用於錯誤日誌。</param>
+		/// <param name="action">The action to execute safely.</param>
+		/// <param name="context">A string describing the execution context, used in error logs.</param>
 		protected void SafeExecute( System.Action action, string context = "" )
 		{
 			try
@@ -339,6 +339,40 @@ namespace Trce.Kernel.Plugin
 			catch ( Exception ex )
 			{
 				_ = SreSystem.Instance?.ReportError( PluginId, $"{context}: {ex.Message}", ex.StackTrace );
+			}
+		}
+
+		/// <summary>
+		/// <para>Safely executes an async action and automatically reports any exception to the SRE Guardian.</para>
+		/// <para>
+		/// <b>【Purpose】</b>Replaces the <c>_ = SomeAsync()</c> fire-and-forget pattern.<br/>
+		/// Ensures that exceptions from async operations are not silently discarded — they are captured and forwarded to SRE.
+		/// </para>
+		/// <para>
+		/// <b>Usage example:</b>
+		/// <code>
+		/// // ❌ Old pattern: exceptions silently swallowed
+		/// _ = LoadDataAsync();
+		///
+		/// // ✅ New pattern: exceptions captured by SRE
+		/// _ = SafeExecuteAsync( LoadDataAsync, "LoadData" );
+		/// </code>
+		/// </para>
+		/// </summary>
+		/// <param name="action">The async action factory to execute safely.</param>
+		/// <param name="context">A string describing the execution context, used in error logs.</param>
+		/// <returns>A <see cref="Task"/> representing the async operation.</returns>
+		protected async Task SafeExecuteAsync( Func<Task> action, string context = "" )
+		{
+			try
+			{
+				if ( action != null )
+					await action();
+			}
+			catch ( Exception ex )
+			{
+				await ( SreSystem.Instance?.ReportError( PluginId, $"{context}: {ex.Message}", ex.StackTrace )
+				        ?? Task.CompletedTask );
 			}
 		}
 	}

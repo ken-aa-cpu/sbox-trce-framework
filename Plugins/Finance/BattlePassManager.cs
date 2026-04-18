@@ -5,9 +5,6 @@ using System.Linq;
 using Trce.Kernel.Net;
 using Trce.Kernel.Bridge;
 using Trce.Kernel.Auth;
-using Trce.Plugins.Combat;
-using Trce.Plugins.GameState;
-using Trce.Plugins.Shared.Confrontation;
 using Trce.Kernel.Plugin;
 using Trce.Kernel.Plugin.Services;
 
@@ -61,28 +58,39 @@ namespace Trce.Plugins.Finance
 
 		private void SubscribeToEvents()
 		{
-			var roundLifecycle = Scene.Get<RoundLifecycle>();
+			// P0-2: Resolve via service interfaces instead of Scene.Get<ConcreteClass>()
+			var roundLifecycle = TrceServiceManager.Instance?.GetService<IRoundLifecycleService>();
 			if ( roundLifecycle != null )
 				roundLifecycle.OnRoundCleanedUp += HandleRoundEnded;
-			if ( Scene.Get<TaskProgressTracker>() != null )
-				Scene.Get<TaskProgressTracker>().OnTaskCompleted += HandleTaskCompleted;
-			if ( Scene.Get<ConfrontationManager>() != null )
-				Scene.Get<ConfrontationManager>().OnConfrontationResult += HandleConfrontationResult;
-			var deathManager = Scene.Get<DeathManager>();
+
+			var taskTracker = TrceServiceManager.Instance?.GetService<ITaskProgressService>();
+			if ( taskTracker != null )
+				taskTracker.OnTaskCompleted += HandleTaskCompleted;
+
+			var confrontation = TrceServiceManager.Instance?.GetService<IConfrontationService>();
+			if ( confrontation != null )
+				confrontation.OnConfrontationResult += HandleConfrontationResult;
+
+			var deathManager = TrceServiceManager.Instance?.GetService<IDeathManagerService>();
 			if ( deathManager != null )
 				deathManager.OnPlayerEvacuated += HandlePlayerEvacuated;
 		}
 
 		private void UnsubscribeFromEvents()
 		{
-			var roundLifecycle = Scene.Get<RoundLifecycle>();
+			var roundLifecycle = TrceServiceManager.Instance?.GetService<IRoundLifecycleService>();
 			if ( roundLifecycle != null )
 				roundLifecycle.OnRoundCleanedUp -= HandleRoundEnded;
-			if ( Scene.Get<TaskProgressTracker>() != null )
-				Scene.Get<TaskProgressTracker>().OnTaskCompleted -= HandleTaskCompleted;
-			if ( Scene.Get<ConfrontationManager>() != null )
-				Scene.Get<ConfrontationManager>().OnConfrontationResult -= HandleConfrontationResult;
-			var deathManager = Scene.Get<DeathManager>();
+
+			var taskTracker = TrceServiceManager.Instance?.GetService<ITaskProgressService>();
+			if ( taskTracker != null )
+				taskTracker.OnTaskCompleted -= HandleTaskCompleted;
+
+			var confrontation = TrceServiceManager.Instance?.GetService<IConfrontationService>();
+			if ( confrontation != null )
+				confrontation.OnConfrontationResult -= HandleConfrontationResult;
+
+			var deathManager = TrceServiceManager.Instance?.GetService<IDeathManagerService>();
 			if ( deathManager != null )
 				deathManager.OnPlayerEvacuated -= HandlePlayerEvacuated;
 		}
@@ -206,7 +214,8 @@ namespace Trce.Plugins.Finance
 			foreach ( var session in allSessions )
 			{
 				var playerObj = TrceServiceManager.Instance?.GetService<IPawnService>()?.GetPlayerPawn( session.SteamId );
-				var dm = playerObj?.Scene.GetAllComponents<DeathManager>().FirstOrDefault();
+				// P0-2: Use IDeathManagerService instead of concrete DeathManager
+				var dm = TrceServiceManager.Instance?.GetService<IDeathManagerService>();
 
 				bool survived = dm != null && !dm.IsDeadOrGone( session.SteamId );
 				int xp = survived ? XP_ROUND_SURVIVE : XP_ROUND_DEAD;

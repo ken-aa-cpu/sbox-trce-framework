@@ -1,7 +1,7 @@
 // File: Code/Kernel/Plugin/TrceServiceManager.cs
 // Encoding: UTF-8 (No BOM)
-// Phase 3: 服務註冊中心 (Service Locator) — TRCE 框架核心。
-// 目標：消滅單例模式、提供 O(1) 查找、執行緒安全、Zero-GC 熱路徑。
+// Phase 3: Service Locator — TRCE framework core.
+// Goals: eliminate singleton patterns, O(1) lookup, thread-safe, Zero-GC hot path.
 
 using Sandbox;
 using System;
@@ -10,27 +10,28 @@ using System.Collections.Concurrent;
 namespace Trce.Kernel.Plugin
 {
 	/// <summary>
-	/// <para>【Phase 3 — 服務註冊中心 (Service Locator)】</para>
+	/// <para>【Phase 3 — Service Locator】</para>
 	/// <para>
-	/// 繼承自 <see cref="GameObjectSystem"/>，由 s&amp;box 引擎保證每個 Scene 中唯一且自動實例化。
-	/// 這取代了所有使用靜態 <c>Instance</c> 的單例模式 (Singleton Pattern)，
-	/// 是 TRCE 插件生態系的依賴注入核心。
+	/// Inherits from <see cref="GameObjectSystem"/>, guaranteed by the s&amp;box engine to be
+	/// unique and automatically instantiated per <see cref="Scene"/>.
+	/// This replaces all static <c>Instance</c> singleton patterns and serves as
+	/// the dependency-injection core of the TRCE plugin ecosystem.
 	/// </para>
 	/// <para>
-	/// <b>架構設計原則：</b><br/>
-	/// - <b>O(1) 查找：</b>使用 <see cref="Dictionary{TKey, TValue}"/> 以 <see cref="Type"/> 為鍵進行哈希查找。<br/>
-	/// - <b>執行緒安全：</b>所有讀寫操作均透過 <c>lock</c> 保護，防止非同步初始化造成的競爭條件 (Race Condition)。<br/>
-	/// - <b>Zero-GC 熱路徑：</b><see cref="GetService{T}"/> 在命中路徑上無記憶體分配。<br/>
-	///   所有服務必須為 <c>class</c> 類型（引用類型），避免裝箱 (Boxing) 到 <c>object</c>。<br/>
-	/// - <b>無反射：</b>所有操作均透過 C# 泛型靜態分派完成，無任何 Reflection 呼叫。<br/>
+	/// <b>Architecture principles:</b><br/>
+	/// - <b>O(1) lookup:</b> uses a <see cref="Dictionary{TKey, TValue}"/> keyed by <see cref="Type"/> for hash lookups.<br/>
+	/// - <b>Thread-safe:</b> all reads and writes are protected by <c>ConcurrentDictionary</c>, preventing race conditions during async initialization.<br/>
+	/// - <b>Zero-GC hot path:</b> <see cref="GetService{T}"/> allocates nothing on the hit path.<br/>
+	///   All services must be <c>class</c> (reference type) to avoid boxing to <c>object</c>.<br/>
+	/// - <b>No reflection:</b> all operations use C# generic static dispatch — zero Reflection calls.<br/>
 	/// </para>
 	/// <para>
-	/// <b>使用範例：</b><br/>
+	/// <b>Usage example:</b><br/>
 	/// <code>
-	/// // 在服務自身的 OnStart 中註冊：
+	/// // Register inside the service's own OnStart:
 	/// TrceServiceManager.Instance?.RegisterService&lt;IInventoryService&gt;(this);
 	///
-	/// // 在任意 Component 中查詢：
+	/// // Query from any Component:
 	/// var inventory = TrceServiceManager.Instance?.GetService&lt;IInventoryService&gt;();
 	/// </code>
 	/// </para>
@@ -38,34 +39,35 @@ namespace Trce.Kernel.Plugin
 	public sealed class TrceServiceManager : GameObjectSystem
 	{
 		// ─────────────────────────────────────────────
-		//  靜態存取點 (Static Access Point)
+		//  Static Access Point
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 取得當前 Scene 的 <see cref="TrceServiceManager"/> 實例。
-		/// <para>由 <see cref="GameObjectSystem"/> 基底類別的生命週期保證此值在 Scene 啟動後有效。</para>
+		/// Returns the <see cref="TrceServiceManager"/> instance for the current scene.
+		/// <para>Guaranteed valid after scene startup by the <see cref="GameObjectSystem"/> base lifecycle.</para>
 		/// </summary>
 		public static TrceServiceManager Instance { get; private set; }
 
 		// ─────────────────────────────────────────────
-		//  內部儲存 (Internal Storage)
+		//  Internal Storage
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 服務字典，以服務的公開合約類型 (Interface 或 Class) 為鍵，服務實例為值。
-		/// <para>注意：字典儲存 <c>object</c>，但所有查詢透過泛型進行，不會在 GetService 路徑上產生 Boxing。</para>
+		/// Service dictionary keyed by the public contract type (Interface or Class) with the service instance as value.
+		/// <para>Note: the dictionary stores <c>object</c>, but all queries go through generics — no boxing occurs on the GetService path.</para>
 		/// </summary>
-		// P2-B: 改用 ConcurrentDictionary — GetService 熱路徑無鎖讀取，_lock 已不再需要。
+		// P2-B: ConcurrentDictionary — lock-free reads on the GetService hot path.
 		private readonly ConcurrentDictionary<Type, object> _services = new();
 
 		// ─────────────────────────────────────────────
-		//  建構子 & 生命週期
+		//  Constructor & Lifecycle
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 由 s&amp;box 引擎自動呼叫的建構子。繼承 <see cref="GameObjectSystem"/> 確保此類別為 Scene 層級的唯一系統。
+		/// Constructor called automatically by the s&amp;box engine.
+		/// Inheriting <see cref="GameObjectSystem"/> ensures this class is the unique system per scene.
 		/// </summary>
-		/// <param name="scene">此系統所屬的場景實例。</param>
+		/// <param name="scene">The scene instance this system belongs to.</param>
 		public TrceServiceManager( Scene scene ) : base( scene )
 		{
 			Instance = this;
@@ -73,21 +75,21 @@ namespace Trce.Kernel.Plugin
 		}
 
 		// ─────────────────────────────────────────────
-		//  公開 API (Public API)
+		//  Public API
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 以類型 <typeparamref name="T"/> 為鍵，向服務中心註冊一個服務實例。
+		/// Registers a service instance keyed by type <typeparamref name="T"/>.
 		/// <para>
-		/// <b>覆蓋行為：</b>若相同類型的服務已存在，新實例將覆蓋舊實例。
-		/// 此設計允許插件更換預設服務的實作 (例如用高效版本替換預設版本)，
-		/// 並輸出 <see cref="Log.Info"/> 以方便偵錯。
+		/// <b>Override behaviour:</b> If a service of the same type already exists, the new instance replaces it.
+		/// This allows plugins to swap a default service implementation with an upgraded version,
+		/// and a <see cref="Log.Info"/> message is emitted for debuggability.
 		/// </para>
-		/// <para>此方法為一次性設定成本，<b>不在熱路徑 (Hot Path) 上</b>，允許鎖定操作。</para>
+		/// <para>This method is a one-time setup cost — <b>not on the hot path</b>.</para>
 		/// </summary>
-		/// <typeparam name="T">服務的公開合約類型 (建議為 Interface，例如 <c>IInventoryService</c>)。必須為 class。</typeparam>
-		/// <param name="serviceInstance">要註冊的服務實例，不可為 null。</param>
-		/// <exception cref="ArgumentNullException">當 <paramref name="serviceInstance"/> 為 null 時拋出。</exception>
+		/// <typeparam name="T">The public contract type of the service (preferably an Interface, e.g. <c>IInventoryService</c>). Must be a class.</typeparam>
+		/// <param name="serviceInstance">The service instance to register. Must not be null.</param>
+		/// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceInstance"/> is null.</exception>
 		public void RegisterService<T>( T serviceInstance ) where T : class
 		{
 			if ( serviceInstance is null )
@@ -95,7 +97,7 @@ namespace Trce.Kernel.Plugin
 
 			var serviceType = typeof(T);
 			var wasReplaced = _services.ContainsKey( serviceType );
-			_services[serviceType] = serviceInstance;  // ConcurrentDictionary indexer 是原子操作
+			_services[serviceType] = serviceInstance;  // ConcurrentDictionary indexer is an atomic operation
 
 			if ( wasReplaced )
 				Log.Info( $"🔄 [TrceServiceManager] Service '{serviceType.Name}' is being REPLACED by a new instance. This is intentional if a plugin is upgrading the service." );
@@ -104,11 +106,11 @@ namespace Trce.Kernel.Plugin
 		}
 
 		/// <summary>
-		/// 從服務中心移除以類型 <typeparamref name="T"/> 為鍵的服務。
-		/// <para>若服務不存在，此方法靜默地無操作 (No-Op)。</para>
-		/// <para>此方法為一次性操作，<b>不在熱路徑 (Hot Path) 上</b>，允許鎖定操作。</para>
+		/// Removes the service keyed by type <typeparamref name="T"/> from the registry.
+		/// <para>If the service does not exist, this method is a silent no-op.</para>
+		/// <para>This method is a one-time operation — <b>not on the hot path</b>.</para>
 		/// </summary>
-		/// <typeparam name="T">要移除的服務的公開合約類型。</typeparam>
+		/// <typeparam name="T">The public contract type of the service to remove.</typeparam>
 		public void UnregisterService<T>() where T : class
 		{
 			if ( _services.TryRemove( typeof(T), out _ ) )
@@ -116,29 +118,27 @@ namespace Trce.Kernel.Plugin
 		}
 
 		/// <summary>
-		/// <para>【Zero-GC 熱路徑】安全地查詢並回傳類型 <typeparamref name="T"/> 的服務實例。</para>
+		/// <para>【Zero-GC Hot Path】 Safely looks up and returns the service instance of type <typeparamref name="T"/>.</para>
 		/// <para>
-		/// <b>效能分析：</b><br/>
-		/// - 命中路徑 (Hit Path)：一次 <see cref="Dictionary{TKey,TValue}.TryGetValue"/> 哈希查找 + 一次引用類型強制轉型，<b>零 GC Allocation</b>。<br/>
-		/// - 未命中路徑 (Miss Path)：同上，額外回傳 <c>null</c>，仍為零分配。<br/>
-		/// - 注意：<c>lock</c> 在讀操作上有輕微的效能開銷。若日後效能分析 (Profiling) 顯示此為瓶頸，
-		///   可升級至 <see cref="System.Collections.Concurrent.ConcurrentDictionary{TKey, TValue}"/> 或無鎖讀取模式。
+		/// <b>Performance analysis:</b><br/>
+		/// - Hit path: one <see cref="ConcurrentDictionary{TKey,TValue}.TryGetValue"/> hash lookup + one reference cast — <b>zero GC allocation</b>.<br/>
+		/// - Miss path: same as hit path, returns <c>null</c> — still zero allocation.<br/>
 		/// </para>
 		/// </summary>
-		/// <typeparam name="T">要查詢的服務的公開合約類型。必須為 class。</typeparam>
+		/// <typeparam name="T">The public contract type of the service to look up. Must be a class.</typeparam>
 		/// <returns>
-		/// 若服務已註冊，回傳服務實例；否則回傳 <c>null</c>。
-		/// 永遠不會拋出例外。
+		/// The service instance if registered; otherwise <c>null</c>.
+		/// Never throws.
 		/// </returns>
 		public T GetService<T>() where T : class
 		{
-			// P2-B: ConcurrentDictionary.TryGetValue 為無鎖讀取，O(1) 哈希查找，Zero-GC Allocation。
+			// P2-B: ConcurrentDictionary.TryGetValue is a lock-free read, O(1) hash lookup, Zero-GC Allocation.
 			return _services.TryGetValue( typeof(T), out var raw ) ? (T)raw : null;
 		}
 
 		/// <summary>
-		/// 清空所有已註冊的服務。
-		/// <para>通常在場景卸載或測試環境重置時呼叫。</para>
+		/// Clears all registered services.
+		/// <para>Typically called on scene unload or when resetting a test environment.</para>
 		/// </summary>
 		public void ClearAll()
 		{

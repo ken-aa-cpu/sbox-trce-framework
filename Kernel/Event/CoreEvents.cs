@@ -7,20 +7,20 @@ using Sandbox;
 namespace Trce.Kernel.Event
 {
 	/// <summary>
-	/// <para>【Phase 2 核心事件定義】</para>
+	/// <para>【Phase 2 — Core Event Definitions】</para>
 	/// <para>
-	/// 所有事件均為 <c>readonly struct</c>，實作 <see cref="ITrceEvent"/>。
-	/// 遵守 Zero-Allocation 原則：Payload 存在於 Stack，不產生 Heap 分配。
+	/// All events are <c>readonly struct</c> implementing <see cref="ITrceEvent"/>.
+	/// Follows the Zero-Allocation principle: payloads reside on the Stack with no Heap allocation.
 	/// </para>
 	/// </summary>
 	public static class CoreEvents
 	{
 		// ─────────────────────────────────────────────
-		//  戰鬥類事件
+		//  Combat Events
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 玩家受到傷害時發布。
+		/// Published when a player takes damage.
 		/// </summary>
 		public readonly struct PlayerDamagedEvent : ITrceEvent
 		{
@@ -37,7 +37,7 @@ namespace Trce.Kernel.Event
 		}
 
 		/// <summary>
-		/// 武器成功射擊一發後發布（每顆子彈觸發一次）。
+		/// Published when a weapon successfully fires one round (fired once per bullet).
 		/// </summary>
 		public readonly struct WeaponFiredEvent : ITrceEvent
 		{
@@ -56,18 +56,18 @@ namespace Trce.Kernel.Event
 		}
 
 		// ─────────────────────────────────────────────
-		//  [新增] 擊殺與死亡事件
+		//  Kill & Death Events
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 當玩家血量歸零被擊殺時，由伺服器向全域發布。
-		/// 取代原本消耗效能的 DeathManager 搜尋。
+		/// Published server-wide by the server when a player's health reaches zero and they are killed.
+		/// Replaces the former performance-costly DeathManager search pattern.
 		/// </summary>
 		public readonly struct PlayerKilledEvent : ITrceEvent
 		{
-			public readonly ulong VictimSteamId;   // 死者的 Steam ID
-			public readonly ulong AttackerSteamId; // 殺手的 Steam ID
-			public readonly Vector3 HitPosition;   // 致命一擊的物理座標
+			public readonly ulong VictimSteamId;   // Steam ID of the victim
+			public readonly ulong AttackerSteamId; // Steam ID of the killer
+			public readonly Vector3 HitPosition;   // Physical coordinates of the killing blow
 
 			public PlayerKilledEvent(ulong victimSteamId, ulong attackerSteamId, Vector3 hitPosition)
 			{
@@ -78,11 +78,11 @@ namespace Trce.Kernel.Event
 		}
 
 		// ─────────────────────────────────────────────
-		//  互動類事件
+		//  Interaction Events
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 玩家的互動準心對準目標改變時發布（包含取消對準）。
+		/// Published when the player's interaction reticle target changes (including loss of target).
 		/// </summary>
 		public readonly struct InteractionTargetChangedEvent : ITrceEvent
 		{
@@ -100,11 +100,11 @@ namespace Trce.Kernel.Event
 		}
 
 		// ─────────────────────────────────────────────
-		//  生命值類事件
+		//  Health Events
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 任意實體的生命值發生變化時發布（回血、受傷、復活等）。
+		/// Published when any entity's health value changes (healing, damage, revival, etc.).
 		/// </summary>
 		public readonly struct HealthChangedEvent : ITrceEvent
 		{
@@ -122,25 +122,25 @@ namespace Trce.Kernel.Event
 		}
 
 		// ─────────────────────────────────────────────
-		//  網路連線類事件（由 TrceNetManager 發布）
+		//  Network / Connection Events (published by TrceNetManager)
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 當客戶端通過驗證且連線處於活躍狀態時，由 TrceNetManager 發布。
+		/// Published by TrceNetManager when a client is authenticated and the connection is active.
 		/// <para>
-		/// 遊戲模式插件應訂閱此事件來負責生成玩家 Pawn，
-		/// 而非直接耦合至 TrceNetManager。
+		/// Game-mode plugins should subscribe to this event to spawn the player Pawn,
+		/// rather than coupling directly to TrceNetManager.
 		/// </para>
 		/// </summary>
 		public readonly struct ClientReadyEvent : ITrceEvent
 		{
-			/// <summary>已通過驗證的客戶端連線物件。</summary>
+			/// <summary>The authenticated client connection object.</summary>
 			public readonly Connection Channel;
 
-			/// <summary>客戶端的 Steam ID（64 位元整數）。</summary>
+			/// <summary>The client's Steam ID (64-bit integer).</summary>
 			public readonly ulong SteamId;
 
-			/// <summary>客戶端的顯示名稱。</summary>
+			/// <summary>The client's display name.</summary>
 			public readonly string DisplayName;
 
 			public ClientReadyEvent( Connection channel, ulong steamId, string displayName )
@@ -152,18 +152,18 @@ namespace Trce.Kernel.Event
 		}
 
 		/// <summary>
-		/// 當客戶端中斷連線時，由 TrceNetManager 發布。
-		/// 遊戲模式插件應訂閱此事件以清理玩家 Pawn 或狀態。
+		/// Published by TrceNetManager when a client disconnects.
+		/// Game-mode plugins should subscribe to this event to clean up the player's Pawn or state.
 		/// </summary>
 		public readonly struct ClientDisconnectedEvent : ITrceEvent
 		{
-			/// <summary>已中斷連線的客戶端連線物件。</summary>
+			/// <summary>The disconnected client connection object.</summary>
 			public readonly Connection Channel;
 
-			/// <summary>客戶端的 Steam ID（64 位元整數）。</summary>
+			/// <summary>The client's Steam ID (64-bit integer).</summary>
 			public readonly ulong SteamId;
 
-			/// <summary>客戶端的顯示名稱。</summary>
+			/// <summary>The client's display name.</summary>
 			public readonly string DisplayName;
 
 			public ClientDisconnectedEvent( Connection channel, ulong steamId, string displayName )
@@ -175,18 +175,19 @@ namespace Trce.Kernel.Event
 		}
 
 		// ─────────────────────────────────────────────
-		//  屬性數值類事件（由 TrceStatPlugin 發布）
+		//  Attribute Events (published by TrceStatPlugin)
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 當實體的某個屬性最終值（含所有修飾符計算後）發生改變時，由 <c>TrceStatPlugin</c> 向全域發布。
+		/// Published globally by <c>TrceStatPlugin</c> when an entity's final attribute value
+		/// (after all modifiers) changes.
 		/// <para>
-		/// <b>觸發條件：</b>呼叫 <c>IAttributeService.SetBaseValue</c>、<c>AddModifier</c> 或
-		/// <c>RemoveModifier</c>，且計算後的最終值確實發生改變時才發布。
-		/// 若值未改變（No-Op 情境），不會發布此事件。
+		/// <b>Trigger condition:</b> fired by <c>IAttributeService.SetBaseValue</c>, <c>AddModifier</c>, or
+		/// <c>RemoveModifier</c> only when the computed final value actually changes.
+		/// If the value is unchanged (no-op), this event is not published.
 		/// </para>
 		/// <para>
-		/// <b>訂閱範例：</b>
+		/// <b>Subscription example:</b>
 		/// <code>
 		/// RegisterEvent&lt;CoreEvents.AttributeChangedEvent&gt;( OnAttrChanged );
 		///
@@ -200,28 +201,28 @@ namespace Trce.Kernel.Event
 		/// </summary>
 		public readonly struct AttributeChangedEvent : ITrceEvent
 		{
-			/// <summary>屬性發生改變的實體 Steam ID（64 位元）。</summary>
+			/// <summary>The Steam ID of the entity whose attribute changed (64-bit).</summary>
 			public readonly ulong SteamId;
 
-			/// <summary>改變的屬性識別字串，例如 <c>"player.move_speed"</c>。</summary>
+			/// <summary>The attribute identifier string, e.g. <c>"player.move_speed"</c>.</summary>
 			public readonly string AttrId;
 
-			/// <summary>改變前的屬性最終值（已含所有修飾符計算）。</summary>
+			/// <summary>The final attribute value before the change (all modifiers applied).</summary>
 			public readonly float OldValue;
 
-			/// <summary>改變後的屬性最終值（已含所有修飾符計算）。</summary>
+			/// <summary>The final attribute value after the change (all modifiers applied).</summary>
 			public readonly float NewValue;
 
-			/// <summary>此次變化的差值 (<c>NewValue - OldValue</c>)。正值為增加，負值為減少。</summary>
+			/// <summary>The delta of this change (<c>NewValue - OldValue</c>). Positive means increase, negative means decrease.</summary>
 			public float Delta => NewValue - OldValue;
 
 			/// <summary>
-			/// 建立一個 <see cref="AttributeChangedEvent"/> 實例。
+			/// Creates an <see cref="AttributeChangedEvent"/> instance.
 			/// </summary>
-			/// <param name="steamId">目標實體的 Steam ID。</param>
-			/// <param name="attrId">改變的屬性識別字串。</param>
-			/// <param name="oldValue">改變前的最終值。</param>
-			/// <param name="newValue">改變後的最終值。</param>
+			/// <param name="steamId">Steam ID of the target entity.</param>
+			/// <param name="attrId">The attribute identifier string.</param>
+			/// <param name="oldValue">The final value before the change.</param>
+			/// <param name="newValue">The final value after the change.</param>
 			public AttributeChangedEvent( ulong steamId, string attrId, float oldValue, float newValue )
 			{
 				SteamId  = steamId;
@@ -232,29 +233,29 @@ namespace Trce.Kernel.Event
 		}
 
 		// ─────────────────────────────────────────────
-		//  狀態標籤類事件（由 TrceStateTagPlugin 發布）
+		//  State Tag Events (published by TrceStateTagPlugin)
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// 當標籤成功被添加至 <see cref="GameObject"/> 時，由 <c>TrceStateTagPlugin</c> 向全域發布。
+		/// Published globally by <c>TrceStateTagPlugin</c> when a tag is successfully added to a <see cref="GameObject"/>.
 		/// <para>
-		/// <b>觸發條件：</b>呼叫 <c>IStateTagService.AddTag</c> 後，目標的
-		/// <c>target.Tags</c> 確實發生變更時才發布（防止重複標籤觸發冗餘事件）。
+		/// <b>Trigger condition:</b> fired after <c>IStateTagService.AddTag</c> only when the target's
+		/// <c>target.Tags</c> actually changes (prevents redundant events for duplicate tags).
 		/// </para>
 		/// </summary>
 		public readonly struct TagAddedEvent : ITrceEvent
 		{
-			/// <summary>被添加標籤的目標 <see cref="GameObject"/>。</summary>
+			/// <summary>The target <see cref="GameObject"/> that received the tag.</summary>
 			public readonly GameObject Target;
 
-			/// <summary>被添加的標籤字串。</summary>
+			/// <summary>The tag string that was added.</summary>
 			public readonly string Tag;
 
 			/// <summary>
-			/// 建立一個 <see cref="TagAddedEvent"/> 實例。
+			/// Creates a <see cref="TagAddedEvent"/> instance.
 			/// </summary>
-			/// <param name="target">被添加標籤的目標物件。</param>
-			/// <param name="tag">被添加的標籤字串。</param>
+			/// <param name="target">The target object that received the tag.</param>
+			/// <param name="tag">The tag string that was added.</param>
 			public TagAddedEvent( GameObject target, string tag )
 			{
 				Target = target;
@@ -263,29 +264,50 @@ namespace Trce.Kernel.Event
 		}
 
 		/// <summary>
-		/// 當標籤成功從 <see cref="GameObject"/> 移除時，由 <c>TrceStateTagPlugin</c> 向全域發布。
+		/// Published globally by <c>TrceStateTagPlugin</c> when a tag is successfully removed from a <see cref="GameObject"/>.
 		/// <para>
-		/// <b>觸發條件：</b>呼叫 <c>IStateTagService.RemoveTag</c> 或計時器過期後，目標的
-		/// <c>target.Tags</c> 確實發生變更時才發布（若標籤原本不存在，不會發布此事件）。
+		/// <b>Trigger condition:</b> fired after <c>IStateTagService.RemoveTag</c> or timer expiry only when
+		/// the target's <c>target.Tags</c> actually changes (if the tag did not exist, event is not published).
 		/// </para>
 		/// </summary>
 		public readonly struct TagRemovedEvent : ITrceEvent
 		{
-			/// <summary>被移除標籤的目標 <see cref="GameObject"/>。</summary>
+			/// <summary>The target <see cref="GameObject"/> whose tag was removed.</summary>
 			public readonly GameObject Target;
 
-			/// <summary>被移除的標籤字串。</summary>
+			/// <summary>The tag string that was removed.</summary>
 			public readonly string Tag;
 
 			/// <summary>
-			/// 建立一個 <see cref="TagRemovedEvent"/> 實例。
+			/// Creates a <see cref="TagRemovedEvent"/> instance.
 			/// </summary>
-			/// <param name="target">被移除標籤的目標物件。</param>
-			/// <param name="tag">被移除的標籤字串。</param>
+			/// <param name="target">The target object whose tag was removed.</param>
+			/// <param name="tag">The tag string that was removed.</param>
 			public TagRemovedEvent( GameObject target, string tag )
 			{
 				Target = target;
 				Tag    = tag;
+			}
+		}
+
+		// ─────────────────────────────────────────────
+		//  Snapshot / Desync Detection (P2-4)
+		// ─────────────────────────────────────────────
+
+		/// <summary>
+		/// Published by <c>SnapshotSync</c> at the start of each sync cycle.
+		/// Any plugin can subscribe and call <see cref="SnapshotStateCollector.Contribute"/> to append an opaque state token
+		/// (e.g. a hash of player positions, health values, or item counts) to the desync fingerprint.
+		/// This increases entropy without creating a direct dependency on any specific plugin.
+		/// </summary>
+		public readonly struct SnapshotStateContributionEvent : ITrceEvent
+		{
+			/// <summary>The collector that accumulates state tokens from all subscribers.</summary>
+			public readonly SnapshotStateCollector Collector;
+
+			public SnapshotStateContributionEvent( SnapshotStateCollector collector )
+			{
+				Collector = collector;
 			}
 		}
 	}
@@ -329,6 +351,9 @@ namespace Trce.Kernel.Event
 			GlobalEventBus.ClearAll<CoreEvents.AttributeChangedEvent>();
 			GlobalEventBus.ClearAll<CoreEvents.TagAddedEvent>();
 			GlobalEventBus.ClearAll<CoreEvents.TagRemovedEvent>();
+
+			// ── Snapshot / Desync Detection ──────────────────────────────────
+			GlobalEventBus.ClearAll<CoreEvents.SnapshotStateContributionEvent>();
 		}
 	}
 }
