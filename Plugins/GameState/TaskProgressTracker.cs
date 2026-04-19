@@ -27,8 +27,8 @@ namespace Trce.Plugins.GameState
 		public float Progress { get; private set; } = 0f;
 
 		// ITaskProgressService events
-		public event Action OnProgressReached100;
-		public event Action<ulong, string, string> OnTaskCompleted;
+		public event System.Action OnProgressReached100;
+		public event System.Action<ulong, string, string> OnTaskCompleted;
 
 		[Property, Group("Triggers")]
 		public List<TaskThresholdAction> ThresholdActions { get; set; } = new();

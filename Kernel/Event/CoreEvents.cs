@@ -3,6 +3,7 @@
 // All payloads are readonly structs — guaranteed Stack allocation, zero GC pressure.
 
 using Sandbox;
+using Trce.Kernel.Net;
 
 namespace Trce.Kernel.Event
 {

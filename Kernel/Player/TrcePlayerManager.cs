@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Trce.Kernel.Bridge;
 using Trce.Kernel.Net;
+using Trce.Kernel.Plugin;
 using Trce.Kernel.Plugin.Services;
 using Trce.Kernel.Event;
 
@@ -22,7 +23,7 @@ namespace Trce.Kernel.Player
 		// P0-3: Stores the paired unsubscription delegates so we have a matching
 		// Action reference to pass to GlobalEventBus.Unsubscribe, preventing memory leaks
 		// across scene reloads.
-		private Action _cleanup;
+		private System.Action _cleanup;
 
 		// Event definitions unchanged — accessed via static Instance or instance reference.
 		public event System.Action<TrcePlayerState> OnPlayerJoined;
@@ -44,8 +45,8 @@ namespace Trce.Kernel.Player
 		{
 			// P0-3: Capture handler references as named delegates so the same reference
 			// can be passed to Unsubscribe, preventing memory leaks on scene reload.
-			Action<CoreEvents.ClientReadyEvent> h1 = HandlePlayerConnected;
-			Action<CoreEvents.ClientDisconnectedEvent> h2 = HandlePlayerDisconnected;
+			System.Action<CoreEvents.ClientReadyEvent> h1 = HandlePlayerConnected;
+			System.Action<CoreEvents.ClientDisconnectedEvent> h2 = HandlePlayerDisconnected;
 			GlobalEventBus.Subscribe( h1 );
 			GlobalEventBus.Subscribe( h2 );
 			_cleanup = () =>

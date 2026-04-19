@@ -71,7 +71,7 @@ namespace Trce.Plugins.Pawn
 		{
 			if ( !(SandboxBridge.Instance?.IsServer ?? false) ) return false;
 
-			var def = Trce.Kernel.Plugin.Services.TrceServiceManager.Instance?.GetService<Trce.Kernel.Plugin.Services.IItemManagerService>()?.GetDefinition( item.ItemId );
+			var def = TrceServiceManager.Instance?.GetService<Trce.Kernel.Plugin.Services.IItemManagerService>()?.GetDefinition( item.ItemId );
 			if ( def == null ) return false;
 
 			await Unequip( slot );
@@ -91,7 +91,7 @@ namespace Trce.Plugins.Pawn
 			if ( !(SandboxBridge.Instance?.IsServer ?? false) ) return;
 			if ( !equippedItems.ContainsKey( slot ) ) return;
 
-			var oldDef = Trce.Kernel.Plugin.Services.TrceServiceManager.Instance?.GetService<Trce.Kernel.Plugin.Services.IItemManagerService>()?.GetDefinition( equippedItems[slot] );
+			var oldDef = TrceServiceManager.Instance?.GetService<Trce.Kernel.Plugin.Services.IItemManagerService>()?.GetDefinition( equippedItems[slot] );
 			if ( oldDef != null ) ApplyStatModifiers( oldDef, slot, add: false );
 
 			equippedItems.Remove( slot );

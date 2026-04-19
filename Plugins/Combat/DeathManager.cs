@@ -34,15 +34,15 @@ namespace Trce.Plugins.Combat
 
 		private Dictionary<ulong, AliveState> playerStates = new();
 
-		public Action<ulong, ulong> OnPlayerKilled;
-		public Action<ulong, ulong, Vector3, string> OnPlayerDowned;
-		public Action<ulong, ulong> OnPlayerRevived;
-		public Action<ulong> OnPlayerExecuted;
-		public event Action<ulong> OnPlayerEvacuated;
+		public event System.Action<ulong, ulong> OnPlayerKilled;
+		public event System.Action<ulong, ulong, Vector3, string> OnPlayerDowned;
+		public event System.Action<ulong, ulong> OnPlayerRevived;
+		public event System.Action<ulong> OnPlayerExecuted;
+		public event System.Action<ulong> OnPlayerEvacuated;
 
-		public event Action OnAllKillersDead;
-		public event Action OnAllCrewDead;
-		public event Action OnAllCrewEvacuated;
+		public event System.Action OnAllKillersDead;
+		public event System.Action OnAllCrewDead;
+		public event System.Action OnAllCrewEvacuated;
 
 		protected override void OnAwake()
 		{

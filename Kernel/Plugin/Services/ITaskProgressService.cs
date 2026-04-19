@@ -16,10 +16,10 @@ namespace Trce.Kernel.Plugin.Services
 		float Progress { get; }
 
 		/// <summary>Fired when a player completes a task. Parameters: (steamId, taskId, location).</summary>
-		event Action<ulong, string, string> OnTaskCompleted;
+		event System.Action<ulong, string, string> OnTaskCompleted;
 
 		/// <summary>Fired when cumulative progress reaches 100%.</summary>
-		event Action OnProgressReached100;
+		event System.Action OnProgressReached100;
 
 		/// <summary>Resets all task progress for a new round.</summary>
 		void ResetProgress();

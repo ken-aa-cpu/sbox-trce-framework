@@ -6,6 +6,7 @@ using Trce.Kernel.Plugin;
 using Trce.Plugins.GameState;
 using Trce.Plugins.Combat;
 using Trce.Kernel.Bridge;
+using Trce.Kernel.Plugin.Services;
 
 namespace Trce.Plugins.Shared.Evidence
 {

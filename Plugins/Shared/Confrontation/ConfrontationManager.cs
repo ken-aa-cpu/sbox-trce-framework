@@ -118,7 +118,7 @@ namespace Trce.Plugins.Shared.Confrontation
 			Log.Info( $"[Confrontation:{GameObject.Name}] Confrontation Started (Threshold: {threshold}%)" );
 
 			// P0-1/P0-2: Use IGamePhaseService instead of Scene.GetAllComponents<GamePhaseManager>()
-			( GetService<IGamePhaseService>() as dynamic )?.EnterConfrontation();
+			GetService<IGamePhaseService>()?.EnterConfrontation();
 
 			OnConfrontationStarted?.Invoke( threshold );
 		}
@@ -185,7 +185,7 @@ namespace Trce.Plugins.Shared.Confrontation
 				case "execute":
 					// P0-2: Use IDeathManagerService instead of Scene.GetAllComponents<DeathManager>()
 					GetService<IDeathManagerService>()?.IsDeadOrGone( target ); // existence check
-					( GetService<IDeathManagerService>() as dynamic )?.ProcessExecution( target );
+					GetService<IDeathManagerService>()?.ProcessExecution( target );
 					break;
 
 				case "seal":
@@ -203,7 +203,7 @@ namespace Trce.Plugins.Shared.Confrontation
 			Log.Info( $"[Confrontation:{GameObject.Name}] Confrontation Ended, Resuming Task Phase." );
 
 			// P0-1/P0-2: Use IGamePhaseService instead of Scene.GetAllComponents<GamePhaseManager>()
-			( GetService<IGamePhaseService>() as dynamic )?.ResumeTaskPhase();
+			GetService<IGamePhaseService>()?.ResumeTaskPhase();
 
 			OnConfrontationEnded?.Invoke();
 		}

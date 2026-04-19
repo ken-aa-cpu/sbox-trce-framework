@@ -4,17 +4,17 @@ using Trce.Kernel.Player;
 
 namespace Trce.Kernel.Plugin.Services
 {
-	public interface IPlayerManagerService : ITrceService
+	public interface IPlayerManagerService
 	{
-		event Action<TrcePlayerState> OnPlayerJoined;
-		event Action<ulong> OnPlayerLeft;
-		event Action<TrcePlayerState, float, float> OnHealthChanged;
-		event Action<TrcePlayerState, ulong> OnPlayerDied;
-		event Action<TrcePlayerState> OnPlayerRevived;
-		event Action<TrcePlayerState> OnRoleAssigned;
-		event Action<TrcePlayerState, string, string> OnZoneChanged;
-		event Action<TrcePlayerState, string> OnPlayerDataChanged;
-		event Action OnRoundReset;
+		event System.Action<TrcePlayerState> OnPlayerJoined;
+		event System.Action<ulong> OnPlayerLeft;
+		event System.Action<TrcePlayerState, float, float> OnHealthChanged;
+		event System.Action<TrcePlayerState, ulong> OnPlayerDied;
+		event System.Action<TrcePlayerState> OnPlayerRevived;
+		event System.Action<TrcePlayerState> OnRoleAssigned;
+		event System.Action<TrcePlayerState, string, string> OnZoneChanged;
+		event System.Action<TrcePlayerState, string> OnPlayerDataChanged;
+		event System.Action OnRoundReset;
 
 		IReadOnlyList<ulong> GetAllPlayerIds();
 		string GetDisplayName( ulong steamId );

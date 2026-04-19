@@ -3,7 +3,7 @@ using Trce.Plugins.Storage;
 
 namespace Trce.Kernel.Plugin.Services
 {
-	public interface IItemManagerService : ITrceService
+	public interface IItemManagerService
 	{
 		TrceItemDefinition GetDefinition( string itemId );
 		void UseItem( TrceItemInstance item, ulong userSteamId );

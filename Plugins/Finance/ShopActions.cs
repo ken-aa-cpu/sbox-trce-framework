@@ -4,6 +4,7 @@ using System.Linq;
 using Trce.Kernel.Player;
 using Trce.Plugins.Shared.Input; // For Inventory if needed
 using Trce.Plugins.Social; // For ChatManager
+using Trce.Kernel.Plugin;
 
 namespace Trce.Plugins.Finance
 {
@@ -32,7 +33,7 @@ namespace Trce.Plugins.Finance
 		{
 			if ( player?.Network?.Owner == null ) return;
 			var steamId = player.Network.Owner.SteamId;
-			var state = Trce.Kernel.Plugin.Services.TrceServiceManager.Instance?.GetService<Trce.Kernel.Plugin.Services.IPlayerManagerService>()?.GetPlayer( steamId );
+			var state = TrceServiceManager.Instance?.GetService<Trce.Kernel.Plugin.Services.IPlayerManagerService>()?.GetPlayer( steamId );
 			if ( state == null ) return;
 
 			float oldHealth = state.Health;

@@ -5,6 +5,7 @@ using System.Linq;
 using Trce.Kernel.Net;
 using Trce.Kernel.Auth;
 using Trce.Kernel.Bridge;
+using Trce.Kernel.Plugin;
 
 namespace Trce.Plugins.Storage
 {
@@ -34,7 +35,7 @@ namespace Trce.Plugins.Storage
 
 		public void OnSceneStartup()
 		{
-			Trce.Kernel.Plugin.Services.TrceServiceManager.Instance?.RegisterService<Trce.Kernel.Plugin.Services.IItemManagerService>( this );
+			TrceServiceManager.Instance?.RegisterService<Trce.Kernel.Plugin.Services.IItemManagerService>( this );
 			LoadAllDefinitions();
 		}
 

@@ -21,6 +21,9 @@ namespace Trce.Kernel.Plugin.Services
 		/// <summary>Begins the game from the Lobby state.</summary>
 		void StartGame();
 
+		void EnterConfrontation();
+		void ResumeTaskPhase();
+
 		/// <summary>
 		/// Fired when the phase changes.
 		/// Parameters: (oldPhase, newPhase, phaseDuration)
