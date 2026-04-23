@@ -23,9 +23,10 @@ namespace Trce.Kernel.Auth
 
 	public static class PermissionNode
 	{
-		public static List<TrcePermissionGroup> AllGroups => _allGroups;
-		public static List<TrcePermissionUser> AllUsers => _allUsers;
+		public static IReadOnlyList<TrcePermissionGroup> AllGroups => _allGroups;
+		public static IReadOnlyList<TrcePermissionUser>  AllUsers  => _allUsers;
 
+		private static readonly object _writeLock = new();
 		private static List<TrcePermissionGroup> _allGroups = new();
 		private static List<TrcePermissionUser> _allUsers = new();
 		private static bool _initialized;
@@ -41,10 +42,19 @@ namespace Trce.Kernel.Auth
 				return;
 			}
 
-			await TrceStorageService.Instance.SaveAsync( "perm_groups.json", _allGroups );
-			await TrceStorageService.Instance.SaveAsync( "perm_users.json", _allUsers );
-			
-			Log.Info( $"[PermissionNode] Saved {_allGroups.Count} groups and {_allUsers.Count} users." );
+			// Capture current references outside the lock so we don't await inside a lock block.
+			List<TrcePermissionGroup> groupsSnapshot;
+			List<TrcePermissionUser> usersSnapshot;
+			lock ( _writeLock )
+			{
+				groupsSnapshot = _allGroups;
+				usersSnapshot  = _allUsers;
+			}
+
+			await TrceStorageService.Instance.SaveAsync( "perm_groups.json", groupsSnapshot );
+			await TrceStorageService.Instance.SaveAsync( "perm_users.json", usersSnapshot );
+
+			Log.Info( $"[PermissionNode] Saved {groupsSnapshot.Count} groups and {usersSnapshot.Count} users." );
 		}
 
 		/// <summary>
@@ -70,17 +80,27 @@ namespace Trce.Kernel.Auth
 				return;
 			}
 
-			_allGroups = await TrceStorageService.Instance.LoadAsync<List<TrcePermissionGroup>>( "perm_groups.json" ) ?? new();
-			_allUsers = await TrceStorageService.Instance.LoadAsync<List<TrcePermissionUser>>( "perm_users.json" ) ?? new();
-			
-			// Seed default groups if empty
-			if ( _allGroups.Count == 0 )
+			// Load fully into local variables first — readers will not see a half-populated list.
+			var loadedGroups = await TrceStorageService.Instance.LoadAsync<List<TrcePermissionGroup>>( "perm_groups.json" ) ?? new();
+			var loadedUsers  = await TrceStorageService.Instance.LoadAsync<List<TrcePermissionUser>>( "perm_users.json" ) ?? new();
+
+			bool wasSeeded = false;
+			// Seed default groups if empty (before atomic assignment so seed is part of the complete list).
+			if ( loadedGroups.Count == 0 )
 			{
 				Log.Info( "[PermissionNode] Seeding default groups..." );
-				_allGroups.Add( new TrcePermissionGroup { Name = "admin", Weight = 100, Nodes = new List<string> { "*" } } );
-				_allGroups.Add( new TrcePermissionGroup { Name = "player", Weight = 0, Nodes = new List<string> { "trce.chat.*", "trce.help" } } );
-				await SaveConfigAsync();
+				loadedGroups.Add( new TrcePermissionGroup { Name = "admin", Weight = 100, Nodes = new List<string> { "*" } } );
+				loadedGroups.Add( new TrcePermissionGroup { Name = "player", Weight = 0, Nodes = new List<string> { "trce.chat.*", "trce.help" } } );
+				wasSeeded = true;
 			}
+
+			// Atomic reference replacement — readers always see a complete list.
+			_allGroups = loadedGroups;
+			_allUsers  = loadedUsers;
+
+			// Persist seeded defaults if we just created them.
+			if ( wasSeeded )
+				await SaveConfigAsync();
 
 			_initialized = true;
 			Log.Info( $"[PermissionNode] Initialized with {_allGroups.Count} groups and {_allUsers.Count} specific user overrides." );
@@ -121,16 +141,134 @@ namespace Trce.Kernel.Auth
 		/// </summary>
 		public static async Task<TrcePermissionUser> ResolveUserAsync( ulong steamId )
 		{
-			// Try to find in loaded list
+			// Fast path — unlocked read (volatile guarantees we see the current reference).
 			var user = _allUsers.FirstOrDefault( u => u.SteamId == steamId );
 			if ( user != null ) return user;
 
-			// If not found, create a default "Player" model
-			return new TrcePermissionUser
+			// Prepare new user before entering the lock to minimise lock duration.
+			var newUser = new TrcePermissionUser
 			{
 				SteamId = steamId,
-				Groups = new List<string> { "player" }
+				Groups  = new List<string> { "player" }
 			};
+
+			bool shouldSave = false;
+			lock ( _writeLock )
+			{
+				// Double-checked: another thread may have inserted between our fast-path read and now.
+				var existing = _allUsers.FirstOrDefault( u => u.SteamId == steamId );
+				if ( existing != null ) return existing;
+
+				_allUsers.Add( newUser );
+				shouldSave = true;
+			}
+
+			// Persist outside the lock — C# forbids await inside a lock block.
+			if ( shouldSave )
+				await SaveConfigAsync();
+
+			return newUser;
+		}
+
+		/// <summary>
+		/// Adds a group membership to the specified user, persisting the change.
+		/// Thread-safe: write is protected by _writeLock.
+		/// </summary>
+		public static async Task AddUserToGroupAsync( ulong steamId, string groupName )
+		{
+			bool shouldSave = false;
+
+			lock ( _writeLock )
+			{
+				var user = _allUsers.FirstOrDefault( u => u.SteamId == steamId );
+				if ( user == null )
+				{
+					user = new TrcePermissionUser { SteamId = steamId, Groups = new List<string> { "player" } };
+					_allUsers.Add( user );
+				}
+
+				if ( !user.Groups.Contains( groupName ) )
+				{
+					user.Groups.Add( groupName );
+					shouldSave = true;
+				}
+			}
+
+			if ( shouldSave )
+				await SaveConfigAsync();
+		}
+
+		/// <summary>
+		/// Adds a permission node to the specified user, persisting the change.
+		/// Thread-safe: write is protected by _writeLock.
+		/// </summary>
+		public static async Task AddNodeToUserAsync( ulong steamId, string node )
+		{
+			bool shouldSave = false;
+
+			lock ( _writeLock )
+			{
+				var user = _allUsers.FirstOrDefault( u => u.SteamId == steamId );
+				if ( user == null )
+				{
+					user = new TrcePermissionUser { SteamId = steamId, Groups = new List<string> { "player" } };
+					_allUsers.Add( user );
+				}
+
+				if ( !user.Nodes.Contains( node ) )
+				{
+					user.Nodes.Add( node );
+					shouldSave = true;
+				}
+			}
+
+			if ( shouldSave )
+				await SaveConfigAsync();
+		}
+
+		/// <summary>
+		/// Creates a new permission group if one with the same name does not exist, persisting the change.
+		/// Thread-safe: write is protected by _writeLock.
+		/// </summary>
+		public static async Task CreateGroupAsync( string name, int weight )
+		{
+			bool shouldSave = false;
+
+			lock ( _writeLock )
+			{
+				if ( _allGroups.Any( g => g.Name == name ) )
+					return;
+
+				_allGroups.Add( new TrcePermissionGroup { Name = name, Weight = weight } );
+				shouldSave = true;
+			}
+
+			if ( shouldSave )
+				await SaveConfigAsync();
+		}
+
+		/// <summary>
+		/// Adds a permission node to the specified group, persisting the change.
+		/// Thread-safe: write is protected by _writeLock.
+		/// </summary>
+		public static async Task AddNodeToGroupAsync( string groupName, string node )
+		{
+			bool shouldSave = false;
+
+			lock ( _writeLock )
+			{
+				var group = _allGroups.FirstOrDefault( g => g.Name == groupName );
+				if ( group == null ) return;
+
+				if ( !group.Nodes.Contains( node ) )
+				{
+					group.Nodes.Add( node );
+					shouldSave = true;
+				}
+			}
+
+			if ( shouldSave )
+				await SaveConfigAsync();
 		}
 
 		/// <summary>

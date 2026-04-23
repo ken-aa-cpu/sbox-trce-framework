@@ -10,6 +10,19 @@ using System.Collections.Concurrent;
 namespace Trce.Kernel.Plugin
 {
 	/// <summary>
+	/// Defines the registration priority for services in <see cref="TrceServiceManager"/>.
+	/// Higher priority services cannot be overridden by lower priority registrations.
+	/// Mirrors the ServicePriority concept from Spigot's ServicesManager.
+	/// </summary>
+	public enum ServicePriority
+	{
+		/// <summary>Default priority for all game/business plugins.</summary>
+		Normal = 0,
+		/// <summary>Reserved for TRCE Kernel layer services. Business plugins must not use this.</summary>
+		Kernel = 99
+	}
+
+	/// <summary>
 	/// <para>【Phase 3 — Service Locator】</para>
 	/// <para>
 	/// Inherits from <see cref="GameObjectSystem"/>, guaranteed by the s&amp;box engine to be
@@ -53,11 +66,25 @@ namespace Trce.Kernel.Plugin
 		// ─────────────────────────────────────────────
 
 		/// <summary>
-		/// Service dictionary keyed by the public contract type (Interface or Class) with the service instance as value.
-		/// <para>Note: the dictionary stores <c>object</c>, but all queries go through generics — no boxing occurs on the GetService path.</para>
+		/// Internal record pairing a service instance with its registration priority.
+		/// </summary>
+		private sealed class ServiceEntry
+		{
+			public object Instance { get; }
+			public ServicePriority Priority { get; }
+			public ServiceEntry( object instance, ServicePriority priority )
+			{
+				Instance  = instance;
+				Priority  = priority;
+			}
+		}
+
+		/// <summary>
+		/// Service dictionary keyed by the public contract type (Interface or Class).
+		/// <para>Note: all queries go through generics — no boxing occurs on the GetService path.</para>
 		/// </summary>
 		// P2-B: ConcurrentDictionary — lock-free reads on the GetService hot path.
-		private readonly ConcurrentDictionary<Type, object> _services = new();
+		private readonly ConcurrentDictionary<Type, ServiceEntry> _services = new();
 
 		// ─────────────────────────────────────────────
 		//  Constructor & Lifecycle
@@ -81,28 +108,41 @@ namespace Trce.Kernel.Plugin
 		/// <summary>
 		/// Registers a service instance keyed by type <typeparamref name="T"/>.
 		/// <para>
-		/// <b>Override behaviour:</b> If a service of the same type already exists, the new instance replaces it.
-		/// This allows plugins to swap a default service implementation with an upgraded version,
-		/// and a <see cref="Log.Info"/> message is emitted for debuggability.
+		/// <b>Priority protection:</b> If a service of the same type is already registered at a higher
+		/// priority, this registration is silently rejected and a warning is logged.
+		/// Same-priority registrations replace the existing instance (last-write-wins).
 		/// </para>
 		/// <para>This method is a one-time setup cost — <b>not on the hot path</b>.</para>
 		/// </summary>
 		/// <typeparam name="T">The public contract type of the service (preferably an Interface, e.g. <c>IInventoryService</c>). Must be a class.</typeparam>
 		/// <param name="serviceInstance">The service instance to register. Must not be null.</param>
+		/// <param name="priority">Registration priority. Kernel-layer services must pass <see cref="ServicePriority.Kernel"/>.</param>
 		/// <exception cref="ArgumentNullException">Thrown when <paramref name="serviceInstance"/> is null.</exception>
-		public void RegisterService<T>( T serviceInstance ) where T : class
+		public void RegisterService<T>( T serviceInstance, ServicePriority priority = ServicePriority.Normal ) where T : class
 		{
 			if ( serviceInstance is null )
 				throw new ArgumentNullException( nameof(serviceInstance), $"[TrceServiceManager] Cannot register a null instance for service '{typeof(T).Name}'." );
 
 			var serviceType = typeof(T);
-			var wasReplaced = _services.ContainsKey( serviceType );
-			_services[serviceType] = serviceInstance;  // ConcurrentDictionary indexer is an atomic operation
 
-			if ( wasReplaced )
-				Log.Info( $"🔄 [TrceServiceManager] Service '{serviceType.Name}' is being REPLACED by a new instance. This is intentional if a plugin is upgrading the service." );
+			if ( _services.TryGetValue( serviceType, out var existing ) )
+			{
+				if ( (int)priority < (int)existing.Priority )
+				{
+					Log.Warning( $"⛔ [TrceServiceManager] Rejected registration of '{serviceType.Name}' " +
+					             $"— existing priority '{existing.Priority}' outranks '{priority}'. " +
+					             $"Attempted registrant: {serviceInstance.GetType().Name}" );
+					return;
+				}
 
-			Log.Info( $"✅ [TrceServiceManager] Registered service: '{serviceType.Name}' → {serviceInstance.GetType().Name}" );
+				if ( priority == existing.Priority )
+					Log.Info( $"🔄 [TrceServiceManager] Service '{serviceType.Name}' is being REPLACED by a new instance at same priority '{priority}'." );
+				else
+					Log.Info( $"⬆️ [TrceServiceManager] Service '{serviceType.Name}' is being UPGRADED from '{existing.Priority}' to '{priority}'." );
+			}
+
+			_services[serviceType] = new ServiceEntry( serviceInstance, priority );
+			Log.Info( $"✅ [TrceServiceManager] Registered service: '{serviceType.Name}' → {serviceInstance.GetType().Name} [{priority}]" );
 		}
 
 		/// <summary>
@@ -113,8 +153,8 @@ namespace Trce.Kernel.Plugin
 		/// <typeparam name="T">The public contract type of the service to remove.</typeparam>
 		public void UnregisterService<T>() where T : class
 		{
-			if ( _services.TryRemove( typeof(T), out _ ) )
-				Log.Info( $"🗑️ [TrceServiceManager] Unregistered service: '{typeof(T).Name}'" );
+			if ( _services.TryRemove( typeof(T), out var removed ) )
+				Log.Info( $"🗑️ [TrceServiceManager] Unregistered service: '{typeof(T).Name}' [was: {removed.Priority}]" );
 		}
 
 		/// <summary>
@@ -133,7 +173,7 @@ namespace Trce.Kernel.Plugin
 		public T GetService<T>() where T : class
 		{
 			// P2-B: ConcurrentDictionary.TryGetValue is a lock-free read, O(1) hash lookup, Zero-GC Allocation.
-			return _services.TryGetValue( typeof(T), out var raw ) ? (T)raw : null;
+			return _services.TryGetValue( typeof(T), out var entry ) ? (T)entry.Instance : null;
 		}
 
 		/// <summary>

@@ -52,7 +52,7 @@ namespace Trce.Kernel.Net
 		public void OnSceneStartup()
 		{
 			// Register with TrceServiceManager so plugins can resolve via GetService<INetManager>().
-			TrceServiceManager.Instance?.RegisterService<INetManager>( this );
+			TrceServiceManager.Instance?.RegisterService<INetManager>( this, ServicePriority.Kernel );
 			Log.Info( "[Net] TrceNetManager initialized." );
 		}
 

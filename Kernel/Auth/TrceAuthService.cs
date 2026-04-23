@@ -55,7 +55,7 @@ namespace Trce.Kernel.Auth
 			}
 
 			// Register with TrceServiceManager so plugins can resolve via GetService<IAuthService>().
-			TrceServiceManager.Instance?.RegisterService<IAuthService>( this );
+			TrceServiceManager.Instance?.RegisterService<IAuthService>( this, ServicePriority.Kernel );
 
 			_initTask = PermissionNode.InitializeAsync();
 		}
@@ -245,24 +245,14 @@ namespace Trce.Kernel.Auth
 
 		private static async Task AddUserGroupAsync( ulong steamId, string groupName )
 		{
-			var user = PermissionNode.AllUsers.FirstOrDefault( u => u.SteamId == steamId );
-			if ( user == null )
-			{
-				user = new TrcePermissionUser { SteamId = steamId };
-				PermissionNode.AllUsers.Add( user );
-			}
-
-			// Validate group existence optionally, but let's at least add it if it doesn't exist in user list
-			if ( !user.Groups.Contains( groupName ) )
-			{
-				user.Groups.Add( groupName );
-				await PermissionNode.SaveConfigAsync();
-				Log.Info( $@"[Auth] Successfully added user {steamId} to group '{groupName}'." );
-			}
-			else
+			if ( PermissionNode.AllUsers.Any( u => u.SteamId == steamId && u.Groups.Contains( groupName ) ) )
 			{
 				Log.Warning( $"[Auth] User {steamId} is already a member of '{groupName}'." );
+				return;
 			}
+
+			await PermissionNode.AddUserToGroupAsync( steamId, groupName );
+			Log.Info( $"[Auth] Successfully added user {steamId} to group '{groupName}'." );
 		}
 
 		[Sandbox.ConCmd( "trce_perm_user_addnode" )]
@@ -282,23 +272,14 @@ namespace Trce.Kernel.Auth
 
 		private static async Task AddUserNodeAsync( ulong steamId, string node )
 		{
-			var user = PermissionNode.AllUsers.FirstOrDefault( u => u.SteamId == steamId );
-			if ( user == null )
-			{
-				user = new TrcePermissionUser { SteamId = steamId };
-				PermissionNode.AllUsers.Add( user );
-			}
-
-			if ( !user.Nodes.Contains( node ) )
-			{
-				user.Nodes.Add( node );
-				await PermissionNode.SaveConfigAsync();
-				Log.Info( $@"[Auth] Successfully added node '{node}' to user {steamId}." );
-			}
-			else
+			if ( PermissionNode.AllUsers.Any( u => u.SteamId == steamId && u.Nodes.Contains( node ) ) )
 			{
 				Log.Warning( $"[Auth] User {steamId} already has node '{node}'." );
+				return;
 			}
+
+			await PermissionNode.AddNodeToUserAsync( steamId, node );
+			Log.Info( $"[Auth] Successfully added node '{node}' to user {steamId}." );
 		}
 		[Sandbox.ConCmd( "trce_perm_group_create" )]
 		public static void CreateGroup( string name, int weight )
@@ -317,8 +298,7 @@ namespace Trce.Kernel.Auth
 				return;
 			}
 
-			PermissionNode.AllGroups.Add( new TrcePermissionGroup { Name = name, Weight = weight } );
-			await PermissionNode.SaveConfigAsync();
+			await PermissionNode.CreateGroupAsync( name, weight );
 			Log.Info( $"[Auth] Created group '{name}' with weight {weight}." );
 		}
 
@@ -333,19 +313,14 @@ namespace Trce.Kernel.Auth
 
 		private static async Task AddGroupNodeAsync( string groupName, string node )
 		{
-			var group = PermissionNode.AllGroups.FirstOrDefault( g => g.Name == groupName );
-			if ( group == null )
+			if ( !PermissionNode.AllGroups.Any( g => g.Name == groupName ) )
 			{
 				Log.Error( $"&c[Auth] Group '{groupName}' not found." );
 				return;
 			}
 
-			if ( !group.Nodes.Contains( node ) )
-			{
-				group.Nodes.Add( node );
-				await PermissionNode.SaveConfigAsync();
-				Log.Info( $"[Auth] 已將節點 '{node}' 加入群組 '{groupName}'。" );
-			}
+			await PermissionNode.AddNodeToGroupAsync( groupName, node );
+			Log.Info( $"[Auth] 已將節點 '{node}' 加入群組 '{groupName}'。" );
 		}
 
 		[Sandbox.ConCmd( "trce_perm_info" )]

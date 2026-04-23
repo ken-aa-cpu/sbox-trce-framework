@@ -252,6 +252,7 @@ namespace Trce.Kernel.Plugin
 		/// <returns>A <see cref="Task"/> representing the async initialization operation.</returns>
 		public virtual async Task InitializeAsync()
 		{
+			// SRE 登記失敗不應阻止 Plugin 啟動，獨立處理
 			try
 			{
 				SreSystem.Instance?.CheckIn( PluginId, Version );
@@ -261,8 +262,19 @@ namespace Trce.Kernel.Plugin
 				Log.Warning( $"[SRE] Registration error for '{PluginId}': {e.Message}" );
 			}
 
-			State = PluginState.Enabled;
-			await OnPluginEnabled();
+			// Plugin 主要初始化
+			try
+			{
+				await OnPluginEnabled();
+				State = PluginState.Enabled;
+			}
+			catch ( Exception e )
+			{
+				State = PluginState.Error;
+				Log.Error( $"[{PluginId}] Initialization failed: {e.Message}" );
+				await ( SreSystem.Instance?.ReportError( PluginId, $"Initialization failed: {e.Message}", e.StackTrace )
+				        ?? Task.CompletedTask );
+			}
 		}
 
 		/// <summary>

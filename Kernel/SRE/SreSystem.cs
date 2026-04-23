@@ -42,7 +42,7 @@ namespace Trce.Kernel.SRE
 		{
 			// Register with TrceServiceManager so plugins can resolve via GetService<ISreSystem>().
 			// Must be done here (not in constructor) — TrceServiceManager may not exist yet at ctor time.
-			TrceServiceManager.Instance?.RegisterService<ISreSystem>( this );
+			TrceServiceManager.Instance?.RegisterService<ISreSystem>( this, ServicePriority.Kernel );
 			Log.Info( "[SRE] Global SRE System active for current scene." );
 		}
 

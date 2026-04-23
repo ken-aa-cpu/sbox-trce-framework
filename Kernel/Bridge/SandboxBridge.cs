@@ -59,7 +59,7 @@ namespace Trce.Kernel.Bridge
 			Trce.Kernel.Auth.PermissionNode.ResetStatic();
 
 			// Register this bridge first so subsequent systems can resolve it immediately.
-			TrceServiceManager.Instance?.RegisterService<ISandboxBridge>( this );
+			TrceServiceManager.Instance?.RegisterService<ISandboxBridge>( this, ServicePriority.Kernel );
 
 			Log.Info( " " );
 			Log.Info( "============================================" );
