@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using Trce.Kernel.Net;
 using Trce.Kernel.Auth;
+using Trce.Kernel.Plugin;
 
 namespace Trce.Plugins.Social
 {
@@ -30,12 +31,13 @@ namespace Trce.Plugins.Social
 			var btn = Buttons[index];
 			if ( !string.IsNullOrEmpty( btn.RequiredPermission ) )
 			{
-				if ( TrceAuthService.Instance != null && !TrceAuthService.Instance.HasPermission( Connection.Local.SteamId, btn.RequiredPermission ) )
+				// P2-2: resolve once via ServiceManager; avoids the dual TrceAuthService.Instance anti-pattern.
+				var authService = TrceServiceManager.Instance?.GetService<IAuthService>();
+				if ( authService != null && !authService.HasPermission( Connection.Local.SteamId, btn.RequiredPermission ) )
 				{
 					Log.Warning( $"[Hologram] Permission denied: {btn.RequiredPermission}" );
 					return;
 				}
-
 			}
 			OnButtonInteracted?.Invoke( index, btn.EventToFire, btn.EventParam );
 		}

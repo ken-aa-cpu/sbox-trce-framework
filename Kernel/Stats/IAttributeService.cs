@@ -1,52 +1,56 @@
 // File: Code/Kernel/Stats/IAttributeService.cs
 // Encoding: UTF-8 (No BOM)
-// Phase 2: 通用屬性服務合約 — TRCE 數值插座系統 (Numeric Socket System)。
+// Phase 2: Universal attribute service contract — TRCE Numeric Socket System.
 
 using System;
 
 namespace Trce.Kernel.Stats;
 
 /// <summary>
-/// <para>【Phase 2 — 通用屬性服務公開合約 (Numeric Socket)】</para>
+/// <para>【Phase 2 — Universal Attribute Service Public Contract (Numeric Socket)】</para>
 /// <para>
-/// 提供「數值插座 (Numeric Socket)」模式的通用實體屬性系統。任何插件均可透過此合約
-/// 定義實體的浮點屬性（如移動速度 <c>"player.move_speed"</c>、最大生命值 <c>"player.max_health"</c>）
-/// 並透過 <see cref="AttributeModifier"/> 在不修改核心程式碼的情況下自由疊加與修飾數值，
-/// 實現完全解耦的數值系統。
+/// Provides a "Numeric Socket" pattern for a generic entity attribute system. Any plugin can
+/// define floating-point attributes for entities (e.g. <c>"player.move_speed"</c>,
+/// <c>"player.max_health"</c>) and layer or modify values freely via <see cref="AttributeModifier"/>
+/// without touching core code, achieving a fully decoupled numeric system.
 /// </para>
 /// <para>
-/// <b>核心計算公式：</b><br/>
-/// <c>最終值 = (基礎值 + Σ所有 Add 型修飾符) × Π所有 Multiply 型修飾符</c>
+/// <b>Core calculation formula:</b><br/>
+/// <c>Final value = (Base value + Σ all Add-type modifiers) × Π all Multiply-type modifiers</c>
 /// </para>
 /// <para>
-/// <b>效能保證：</b><br/>
-/// 實作層必須採用「臟標記 (Dirty Flag)」快取機制，確保在未發生修飾符變動時，
-/// <see cref="GetTotalValue"/> 的呼叫為 O(1) 直接回傳，不重複計算。
+/// <b>Performance guarantee:</b><br/>
+/// Implementations must use a dirty-flag caching mechanism so that <see cref="GetTotalValue"/>
+/// is O(1) when no modifiers have changed since the last computation.
 /// </para>
 /// </summary>
 public interface IAttributeService
 {
 	/// <summary>
-	/// 計算並回傳指定實體屬性的最終值。
+	/// Computes and returns the final value of the specified entity attribute.
 	/// <para>
-	/// <b>【效能保證 — O(1) 快取命中】</b>：內部實作採用臟標記快取機制。
-	/// 若自上次修改後未發生任何變動，此呼叫直接回傳快取值，無任何重新計算開銷。
+	/// <b>【Performance guarantee — O(1) cache hit】:</b> The internal implementation uses a
+	/// dirty-flag cache. If no modifiers have changed since the last computation, this call
+	/// returns the cached value with zero recalculation overhead.
 	/// </para>
 	/// </summary>
 	float GetTotalValue( ulong steamId, string attrId );
 
 	/// <summary>
-	/// 設定指定實體屬性的基礎值 (Base Value)，並在值發生改變時觸發屬性變更事件。
+	/// Sets the base value (Base Value) of the specified entity attribute
+	/// and fires an attribute-changed event when the value actually changes.
 	/// </summary>
 	void SetBaseValue( ulong steamId, string attrId, float value );
 
 	/// <summary>
-	/// 向指定實體的屬性添加一個 <see cref="AttributeModifier"/>，並回傳可用於後續移除的唯一識別碼。
+	/// Adds an <see cref="AttributeModifier"/> to the specified entity attribute
+	/// and returns a unique identifier that can be used to remove it later.
 	/// </summary>
 	Guid AddModifier( ulong steamId, string attrId, AttributeModifier modifier );
 
 	/// <summary>
-	/// 依唯一識別碼移除指定實體屬性上的一個 <see cref="AttributeModifier"/>。
+	/// Removes the <see cref="AttributeModifier"/> identified by <paramref name="modifierId"/>
+	/// from the specified entity attribute.
 	/// </summary>
 	void RemoveModifier( ulong steamId, string attrId, Guid modifierId );
 }

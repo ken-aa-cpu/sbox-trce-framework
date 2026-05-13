@@ -5,18 +5,18 @@ using Trce.Kernel.Player;
 namespace Trce.Kernel.Plugin.Pawn.Base
 {
     /// <summary>
-    ///   物理移動核心 (Movement Engine Base)
-    ///   權力結構的第二層。負責讀取 CitizenRoot 的意圖 (Intent)，並驅動 CharacterController。
+    /// Physics movement core (Movement Engine Base).
+    /// Tier 2 of the authority hierarchy. Reads the intent from CitizenRoot and drives CharacterController.
     /// </summary>
-    [Title( "TRCE Movement Engine (移動引擎)" )]
+    [Title( "TRCE Movement Engine" )]
     [Category( "TRCE Core - Base" )]
     [Icon( "directions_run" )]
     public class TrceMovementEngine : Component
     {
-        [Property, Description("基礎移動速度")]
+        [Property, Description("Base movement speed")]
         public float BaseMoveSpeed { get; set; } = 150f;
 
-        [Property, Description("摩擦力")]
+        [Property, Description("Ground friction")]
         public float Friction { get; set; } = 5.0f;
 
         protected ICitizen _root;
@@ -24,15 +24,15 @@ namespace Trce.Kernel.Plugin.Pawn.Base
 
         protected override void OnStart()
         {
-            // 向上尋找權力核心 (CitizenRoot)
+            // Locate the Citizen authority core (CitizenRoot) on this GameObject.
             _root = Components.Get<ICitizen>();
 
-            // 獲取自身的物理控制器
+            // Acquire the physics CharacterController on this GameObject.
             _controller = Components.Get<CharacterController>();
 
             if ( _root == null )
             {
-                Log.Warning( $"[{GameObject.Name}] TrceMovementEngine 找不到 ICitizen 權力核心，實體將無法移動。" );
+                Log.Warning( $"[{GameObject.Name}] TrceMovementEngine: ICitizen core not found. Entity will not be able to move." );
             }
         }
 
@@ -40,52 +40,53 @@ namespace Trce.Kernel.Plugin.Pawn.Base
         {
             if ( _root == null || _controller == null ) return;
 
-            // 如果是網路代理物件，且不由本地控制物理，則跳過 (交由 s&box 原生 Sync 處理)
+            // If this is a network proxy not owned locally, skip — let s&box native Sync handle physics.
             if ( IsProxy && !Network.IsOwner ) return;
 
             ApplyMovement( _root.Intent );
         }
 
         /// <summary>
-        ///   將意圖轉換為物理位移 (可供子類別如飛龍飛行、載具駕駛進行覆寫)
+        /// Converts intent into physical displacement.
+        /// Can be overridden by subclasses (e.g. dragon flight, vehicle driving).
         /// </summary>
         protected virtual void ApplyMovement( CitizenIntent intent )
         {
-            // 1. 計算目標水平速度
+            // 1. Compute target horizontal velocity.
             var targetVelocity = intent.WishMove * BaseMoveSpeed;
             if ( intent.WishSprint )
             {
                 targetVelocity *= 1.5f;
             }
 
-            // 2. 繼承當前的垂直速度 (處理重力與跳躍)
+            // 2. Inherit current vertical velocity (handles gravity and jumping).
             var currentVelocity = _controller.Velocity;
             if ( _controller.IsOnGround )
             {
-                currentVelocity.z = 0; // 站在地上時歸零
+                currentVelocity.z = 0; // Zero out vertical velocity while grounded.
                 if ( intent.WishJump )
                 {
-                    // 修正物理跳躍
-                    currentVelocity.z = 350f; // 給予向上初速
-                    _controller.Punch( Vector3.Up * 50f ); // 額外物理衝量
+                    // Apply jump impulse.
+                    currentVelocity.z = 350f; // Initial upward velocity.
+                    _controller.Punch( Vector3.Up * 50f ); // Additional physics impulse.
                 }
             }
             else
             {
-                currentVelocity += Scene.PhysicsWorld.Gravity * Time.Delta; // 在空中受重力影響
+                currentVelocity += Scene.PhysicsWorld.Gravity * Time.Delta; // Apply gravity while airborne.
             }
 
-            // 3. 結合大腦的水平速度 (X, Y) 與物理的垂直速度 (Z)
+            // 3. Combine the brain's horizontal velocity (X, Y) with the physics vertical velocity (Z).
             currentVelocity = new Vector3( targetVelocity.x, targetVelocity.y, currentVelocity.z );
 
-            // 5. 讓角色身體跟著移動方向旋轉 (平滑轉向)
+            // 5. Rotate the character body to face the movement direction (smooth turn).
             if ( intent.WishMove.Length > 0.1f )
             {
                 var targetRot = Rotation.LookAt( intent.WishMove, Vector3.Up );
                 GameObject.Transform.Rotation = Rotation.Slerp( GameObject.Transform.Rotation, targetRot, Time.Delta * 10f );
             }
 
-            // 6. 強制寫入速度，並推動控制器！
+            // 6. Write the final velocity and step the controller.
             _controller.Velocity = currentVelocity;
             _controller.Move();
         }

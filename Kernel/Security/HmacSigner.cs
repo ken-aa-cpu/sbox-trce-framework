@@ -44,10 +44,38 @@ namespace Trce.Kernel.Security
 			return ConstantTimeEquals( expected, signature );
 		}
 
-		/// <summary>Generates a 64-char cryptographically random secret using Guid entropy.</summary>
+		/// <summary>
+		/// Generates a 64-char random secret string.
+		/// <para>
+		/// <b>KNOWN-LIMITATION (P1-1 / SB1000):</b>
+		/// <c>System.Security.Cryptography.RandomNumberGenerator.Fill</c> is blocked by the
+		/// s&amp;box API whitelist (<c>SB1000</c>) and cannot be used in this sandbox environment.
+		/// This method therefore falls back to concatenating two <c>Guid.NewGuid()</c> values.
+		/// </para>
+		/// <para>
+		/// <b>Security posture of the fallback:</b><br/>
+		/// On all platforms s&amp;box targets (Windows / Linux), <c>Guid.NewGuid()</c> is internally
+		/// seeded by the OS CSPRNG (CryptGenRandom / getrandom). In practice this provides
+		/// equivalent entropy to <c>RandomNumberGenerator</c>. However, the <c>Guid</c> API
+		/// carries no cryptographic guarantee by specification, so this must be treated as a
+		/// sandbox-imposed constraint rather than a deliberate design choice.
+		/// </para>
+		/// <para>
+		/// If a future s&amp;box whitelist update permits <c>RandomNumberGenerator</c>, replace
+		/// the body with:
+		/// <code>
+		/// var bytes = new byte[32];
+		/// System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+		/// return BytesToHex(bytes);
+		/// </code>
+		/// </para>
+		/// </summary>
 		/// <returns>A 64-character random secret string.</returns>
 		public static string GenerateRoundSecret()
+			// KNOWN-LIMITATION: RandomNumberGenerator.Fill blocked by s&box SB1000 whitelist.
+			// Guid.NewGuid() is OS-CSPRNG-backed on all target platforms in practice.
 			=> $"{Guid.NewGuid():N}{Guid.NewGuid():N}";
+
 
 		/// <summary>Signs the pipe-joined concatenation of <paramref name="fields"/>.</summary>
 		/// <param name="secret">The secret key.</param>

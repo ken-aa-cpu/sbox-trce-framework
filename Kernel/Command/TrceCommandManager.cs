@@ -68,19 +68,19 @@ namespace Trce.Kernel.Command
 				var auth = TrceAuthService.Instance;
 				if ( auth == null )
 				{
-					Log.Warning( $"[Command] /{cmdName}: TrceAuthService 未就緒，拒絕執行需要授權的指令。" );
+					Log.Warning( $"[Command] /{cmdName}: TrceAuthService is not ready. Rejecting command that requires authorization." );
 					return false;
 				}
 
 				if ( cmd.RequiredWeight > 0 && auth.GetWeight( steamId ) < cmd.RequiredWeight )
 				{
-					Log.Warning( $"[Command] /{cmdName}: 玩家 {steamId} 的權重不足（需要: {cmd.RequiredWeight}，目前: {auth.GetWeight( steamId )}）。" );
+					Log.Warning( $"[Command] /{cmdName}: Player {steamId} has insufficient weight (required: {cmd.RequiredWeight}, current: {auth.GetWeight( steamId )})." );
 					return false;
 				}
 
 				if ( cmd.PermissionNode != null && !auth.HasPermission( steamId, cmd.PermissionNode ) )
 				{
-					Log.Warning( $"[Command] /{cmdName}: 玩家 {steamId} 缺少權限節點 '{cmd.PermissionNode}'。" );
+					Log.Warning( $"[Command] /{cmdName}: Player {steamId} is missing the required permission node '{cmd.PermissionNode}'." );
 					return false;
 				}
 			}

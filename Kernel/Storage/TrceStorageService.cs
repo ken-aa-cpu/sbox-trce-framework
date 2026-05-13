@@ -38,9 +38,13 @@ namespace Trce.Kernel.Storage
 		private Providers.LocalStorageProvider _fallbackProvider = new Providers.LocalStorageProvider();
 
 		/// <summary>
-		/// Global instance for easy access. 
+		/// P2-2: Internal direct-access instance for framework-internal use only.
+		/// <b>External code (plugins, user assemblies) must use
+		/// <c>SandboxBridge.SaveData / LoadData / DataExists</c> or resolve via
+		/// <c>TrceServiceManager.Instance.GetService&lt;ITrceStorageService&gt;()</c> instead.</b>
+		/// Keeping Instance internal prevents new developers from bypassing the service locator.
 		/// </summary>
-		public static TrceStorageService Instance { get; private set; }
+		internal static TrceStorageService Instance { get; private set; }
 
 		public TrceStorageService( Scene scene ) : base( scene )
 		{
@@ -131,7 +135,25 @@ namespace Trce.Kernel.Storage
 		[ConCmd( "trce_storage_migrate_to_cloud", Help = "Migrates all local JSON storage files to the Firebase cloud provider." )]
 		public static void MigrateToCloudCmd()
 		{
-			_ = MigrateToCloudAsync();
+			// P0-2: Replace silent fire-and-forget with an error-reporting wrapper.
+			// MigrateToCloudCmd is a static ConCmd and cannot use TrcePlugin.SafeExecuteAsync,
+			// so exceptions are caught here and forwarded to SreSystem directly.
+			_ = RunWithSreGuardAsync( MigrateToCloudAsync, "MigrateToCloud" );
+		}
+
+		private static async System.Threading.Tasks.Task RunWithSreGuardAsync( System.Func<System.Threading.Tasks.Task> action, string context )
+		{
+			try
+			{
+				await action();
+			}
+			catch ( Exception ex )
+			{
+				Log.Error( $"[TrceStorageService] Unhandled exception in '{context}': {ex.Message}" );
+				await ( Trce.Kernel.SRE.SreSystem.Instance?.ReportError(
+					"TrceStorageService", $"{context}: {ex.Message}", ex.StackTrace )
+					?? System.Threading.Tasks.Task.CompletedTask );
+			}
 		}
 
 		private static async Task MigrateToCloudAsync()

@@ -1,6 +1,6 @@
 // File: Code/Kernel/Stats/TrceStatPlugin.cs
 // Encoding: UTF-8 (No BOM)
-// Phase 2: IAttributeService 核心實作 — 快取臟標記、Zero-GC 計算路徑、熱重載防呆。
+// Phase 2: IAttributeService core implementation — dirty-flag caching, Zero-GC calculation path, hot-reload safety.
 
 using System;
 using System.Collections.Generic;
@@ -12,7 +12,7 @@ using Trce.Kernel.Plugin;
 namespace Trce.Kernel.Stats;
 
 /// <summary>
-/// 【Phase 2 — TRCE 通用屬性服務實作 (Stat Plugin)】
+/// 【Phase 2 — TRCE Universal Attribute Service Implementation (Stat Plugin)】
 /// </summary>
 [TrcePlugin( Id = "trce.stats", Name = "TRCE Stat System", Version = "2.0.0", Author = "TRCE Team" )]
 [Icon( "bar_chart" )]
@@ -27,7 +27,7 @@ public sealed class TrceStatPlugin : TrcePlugin, IAttributeService
 		public bool IsDirty = true;
 	}
 
-	// 完全無靜態欄位，確保熱重載後自動被 GC 回收，零殘留
+	// No static fields — guaranteed to be GC-collected after hot-reload with zero residual state.
 	private readonly Dictionary<ulong, Dictionary<string, AttrState>> _entityData = new();
 
 	protected override Task OnPluginEnabled()
@@ -38,7 +38,7 @@ public sealed class TrceStatPlugin : TrcePlugin, IAttributeService
 
 	protected override void OnPluginDisabled()
 	{
-		// 防呆核心：強制清空所有實體的屬性快取，確保熱重載後零殘留
+		// Failsafe core: forcibly clear all entity attribute caches to ensure zero residual state after hot-reload.
 		_entityData.Clear();
 		TrceServiceManager.Instance?.UnregisterService<IAttributeService>();
 	}
@@ -139,7 +139,7 @@ public sealed class TrceStatPlugin : TrcePlugin, IAttributeService
 		float addSum     = state.BaseValue;
 		float mulProduct = 1f;
 
-		// Zero-GC 核心遍歷：使用 Dictionary Struct Enumerator，絕不使用 LINQ
+		// Zero-GC core iteration: uses Dictionary Struct Enumerator — LINQ is strictly forbidden.
 		foreach ( var mod in state.Modifiers.Values )
 		{
 			if ( mod.Type == ModifierType.Add )

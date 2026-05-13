@@ -6,26 +6,32 @@ namespace Trce.Kernel.Net
 
 {
 	/// <summary>
-	/// 伺服器端亂數產生器 (Server)
-	///
-	/// 確保隨機數種子 (Seed) 一致
-	///
-	/// 安全性:
-	///   - 只有 Server 可以呼叫 Next / Shuffle
-	///   - Client 無法呼叫，以防修改 Seed
-	///   - Seed 會透過 [Sync] 同步到 Client (供 UI 即時預測或顯示特效用)
-	///
-	/// 使用範例:
-	///    int value = Scene.Get<TrceRNG>().Next( 0, 10 );
-	///    Scene.Get<TrceRNG>().Shuffle( playerList );
+	/// Server-side deterministic random number generator.
+	/// <para>
+	/// Ensures that the random seed is consistent across the server for a given round.
+	/// The seed is synced to clients via <c>[Sync]</c> so they can use it for UI prediction or visual effects.
+	/// </para>
+	/// <para>
+	/// <b>Security model:</b><br/>
+	/// - Only the Server may call <see cref="Next"/>, <see cref="NextFloat"/>, or <see cref="Shuffle{T}"/>.<br/>
+	/// - Clients cannot advance the generator, preventing seed manipulation.<br/>
+	/// - The current seed is broadcast via <c>[Sync]</c> for read-only client use only.
+	/// </para>
+	/// <para>
+	/// <b>Usage example:</b>
+	/// <code>
+	/// int value = Scene.Get&lt;TrceRNG&gt;().Next( 0, 10 );
+	/// Scene.Get&lt;TrceRNG&gt;().Shuffle( playerList );
+	/// </code>
+	/// </para>
 	/// </summary>
 	[Title( "TRCE RNG" ), Group( "Trce - Kernel" )]
 	public class TrceRNG : Component
 	{
-		/// <summary> 目前回合的亂數種子 (同步到 Client 供 UI 使用) </summary>
+		/// <summary> The random seed for the current round, synced to clients for UI use. </summary>
 		[Sync]
 		public int CurrentRoundSeed { get; private set; }
-		/// <summary> Server 端使用的亂數產生器 </summary>
+		/// <summary> The server-side random number generator instance. </summary>
 		private System.Random serverRandom;
 		private SandboxBridge _bridge;
 		protected override void OnAwake()
@@ -34,7 +40,8 @@ namespace Trce.Kernel.Net
 		}
 
 		/// <summary>
-		/// 根據回合生命週期 (RoundLifecycle) 初始化亂數種子
+		/// Initializes a new random seed tied to the current round lifecycle.
+		/// Must be called by the game-mode plugin at the start of each round.
 		/// </summary>
 		public void InitializeNewRoundSeed()
 		{
@@ -45,8 +52,8 @@ namespace Trce.Kernel.Net
 		}
 
 		/// <summary>
-		/// 產生介於 [min, max) 之間的隨機整數
-		/// 必須在 Server 端呼叫
+		/// Returns a random integer in the range [min, max).
+		/// Must be called on the Server.
 		/// </summary>
 		public int Next( int min, int max )
 		{
@@ -59,7 +66,8 @@ namespace Trce.Kernel.Net
 		}
 
 		/// <summary>
-		/// 產生 0.0 ~ 1.0 的隨機浮點數
+		/// Returns a random float in the range [0.0, 1.0].
+		/// Must be called on the Server.
 		/// </summary>
 		public float NextFloat()
 		{
@@ -72,7 +80,8 @@ namespace Trce.Kernel.Net
 		}
 
 		/// <summary>
-		/// 使用 Fisher-Yates 演算法洗牌
+		/// Shuffles the list in-place using the Fisher-Yates algorithm.
+		/// Must be called on the Server.
 		/// </summary>
 		public void Shuffle<T>( System.Collections.Generic.List<T> list )
 		{
@@ -87,7 +96,7 @@ namespace Trce.Kernel.Net
 
 		}
 
-		/// <summary> 從列表中隨機挑選一個元素 </summary>
+		/// <summary> Picks a random element from the list. Returns <c>default</c> if the list is null or empty. </summary>
 		public T PickRandom<T>( System.Collections.Generic.List<T> list )
 		{
 			if ( !(_bridge?.IsServer ?? false) || serverRandom == null || list == null || list.Count == 0 )
@@ -98,4 +107,3 @@ namespace Trce.Kernel.Net
 	}
 
 }
-

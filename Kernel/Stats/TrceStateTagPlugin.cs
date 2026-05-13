@@ -1,6 +1,6 @@
 // File: Code/Kernel/Stats/TrceStateTagPlugin.cs
 // Encoding: UTF-8 (No BOM)
-// Phase 2: IStateTagService 核心實作 — 包裝 s&box 原生 Tags、Zero-GC 計時器迴圈、熱重載防呆。
+// Phase 2: IStateTagService core implementation — wraps s&box native Tags, Zero-GC timer loop, hot-reload safety.
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -11,23 +11,23 @@ using Trce.Kernel.Plugin;
 namespace Trce.Kernel.Stats;
 
 /// <summary>
-/// 【Phase 2 — TRCE 通用狀態標籤服務實作 (State Tag Plugin)】
+/// 【Phase 2 — TRCE Universal State-Tag Service Implementation (State Tag Plugin)】
 /// <para>
-/// 直接包裝 s&amp;box 原生 <c>GameObject.Tags.Has / Add / Remove</c>，
-/// 並在其上疊加可選的自動到期計時器機制。
+/// Wraps the s&amp;box native <c>GameObject.Tags.Has / Add / Remove</c> directly
+/// and layers an optional auto-expiry timer mechanism on top.
 /// </para>
 /// <para>
-/// <b>【Zero-GC 效能死線 — OnUpdate 迴圈】</b><br/>
-/// 計時器掃描使用預先分配的 <c>_expiredKeys</c> 移除暫存列表，
-/// 以 <c>for</c> 索引迴圈進行倒序移除，絕對零 GC Alloc：
+/// <b>【Zero-GC performance deadline — OnUpdate loop】</b><br/>
+/// The timer scan uses a pre-allocated <c>_expiredKeys</c> staging list,
+/// with a <c>for</c>-indexed reverse-removal loop to achieve absolute zero GC alloc:
 /// <list type="bullet">
-///   <item>嚴禁 LINQ</item>
-///   <item>嚴禁在 foreach 迭代 Dictionary 期間進行 Remove</item>
-///   <item><c>_expiredKeys</c> 在 OnPluginDisabled 統一 Clear，不重複分配</item>
+///   <item>LINQ is strictly forbidden.</item>
+///   <item>Removal during Dictionary foreach iteration is strictly forbidden.</item>
+///   <item><c>_expiredKeys</c> is cleared in OnPluginDisabled — never reallocated.</item>
 /// </list>
 /// </para>
 /// <para>
-/// <b>【防呆】</b>：OnPluginDisabled 強制清空所有計時器快取，確保熱重載後零殘留。
+/// <b>【Failsafe】:</b> OnPluginDisabled forcibly clears all timer caches, ensuring zero residual state after hot-reload.
 /// </para>
 /// </summary>
 [TrcePlugin( Id = "trce.statetag", Name = "TRCE State Tag System", Version = "2.0.0", Author = "TRCE Team" )]
@@ -36,23 +36,24 @@ namespace Trce.Kernel.Stats;
 public sealed class TrceStateTagPlugin : TrcePlugin, IStateTagService
 {
 	// ─────────────────────────────────────────────
-	//  計時器資料結構
+	//  Timer Data Structures
 	// ─────────────────────────────────────────────
 
 	/// <summary>
-	/// 複合鍵：以 (GameObject, tag) 為 Key，記錄該標籤的到期時間（<c>Time.Now + duration</c>）。
-	/// <para>完全無靜態欄位，確保熱重載後自動被 GC 回收，零殘留。</para>
+	/// Composite key: (GameObject, tag) → expiry time (<c>Time.Now + duration</c>).
+	/// <para>No static fields — guaranteed to be GC-collected after hot-reload with zero residual state.</para>
 	/// </summary>
 	private readonly Dictionary<(GameObject, string), float> _timers = new();
 
 	/// <summary>
-	/// 【Zero-GC 設計】預先分配的移除暫存列表。
-	/// OnUpdate 每幀重用此列表收集過期 Key，再批次移除，杜絕 InvalidOperationException。
+	/// 【Zero-GC design】 Pre-allocated staging list for removals.
+	/// OnUpdate reuses this list every frame to collect expired keys before batch removal,
+	/// preventing <c>InvalidOperationException</c> from concurrent modification.
 	/// </summary>
 	private readonly List<(GameObject, string)> _expiredKeys = new();
 
 	// ─────────────────────────────────────────────
-	//  生命週期
+	//  Lifecycle
 	// ─────────────────────────────────────────────
 
 	/// <inheritdoc/>
@@ -65,24 +66,24 @@ public sealed class TrceStateTagPlugin : TrcePlugin, IStateTagService
 	/// <inheritdoc/>
 	protected override void OnPluginDisabled()
 	{
-		// 防呆核心：清空所有計時器快取與暫存列表，確保熱重載後零殘留
+		// Failsafe core: clear all timer caches and staging list to ensure zero residual state after hot-reload.
 		_timers.Clear();
 		_expiredKeys.Clear();
 		TrceServiceManager.Instance?.UnregisterService<IStateTagService>();
 	}
 
 	// ─────────────────────────────────────────────
-	//  OnUpdate — Zero-GC 計時器掃描迴圈
+	//  OnUpdate — Zero-GC Timer Scan Loop
 	// ─────────────────────────────────────────────
 
 	/// <summary>
-	/// 每幀掃描到期標籤並自動移除。
+	/// Scans expired tags every frame and removes them automatically.
 	/// <para>
-	/// <b>【Zero-GC 實作細節】</b><br/>
-	/// 1. 以 for 迴圈搭配 <c>_timers</c> KeyValuePair List（避免 Dictionary Enumerator 在修改時拋出例外）<br/>
-	/// 2. 使用預先分配的 <c>_expiredKeys</c> 收集過期項目<br/>
-	/// 3. 倒序遍歷 <c>_expiredKeys</c> 執行移除，防止索引偏移<br/>
-	/// 4. 全程無 LINQ、無匿名物件、無 boxing
+	/// <b>【Zero-GC implementation details】</b><br/>
+	/// 1. Iterates <c>_timers</c> KeyValuePair List with a for loop (avoids Dictionary Enumerator throwing on mutation).<br/>
+	/// 2. Uses the pre-allocated <c>_expiredKeys</c> list to collect expired entries.<br/>
+	/// 3. Iterates <c>_expiredKeys</c> in reverse to perform removals without index shifting.<br/>
+	/// 4. Zero LINQ, zero anonymous objects, zero boxing.
 	/// </para>
 	/// </summary>
 	protected override void OnUpdate()
@@ -92,21 +93,21 @@ public sealed class TrceStateTagPlugin : TrcePlugin, IStateTagService
 
 		float now = Time.Now;
 
-		// 第一遍：收集所有已到期的 Key 至預分配暫存列表
-		// 使用 foreach 僅用於讀取（不在此處呼叫 Remove），符合 Zero-GC 規範
+		// Pass 1: collect all expired keys into the pre-allocated staging list.
+		// foreach is used for read-only access here (no Remove calls), conforming to Zero-GC rules.
 		foreach ( var kv in _timers )
 		{
 			if ( now >= kv.Value )
 				_expiredKeys.Add( kv.Key );
 		}
 
-		// 第二遍：批次移除到期標籤（倒序，防止 List 索引偏移）
+		// Pass 2: batch-remove expired tags (reverse order prevents List index shifting).
 		for ( int i = _expiredKeys.Count - 1; i >= 0; i-- )
 		{
 			var key = _expiredKeys[i];
 			_timers.Remove( key );
 
-			// 只有在標籤確實存在時才執行移除並發布事件
+			// Only remove and fire the event if the tag is actually present.
 			if ( key.Item1.IsValid() && key.Item1.Tags.Has( key.Item2 ) )
 			{
 				key.Item1.Tags.Remove( key.Item2 );
@@ -114,12 +115,12 @@ public sealed class TrceStateTagPlugin : TrcePlugin, IStateTagService
 			}
 		}
 
-		// 清空暫存列表以供下一幀複用（不 new，符合 Zero-GC）
+		// Clear the staging list for reuse next frame (no new allocation — Zero-GC).
 		_expiredKeys.Clear();
 	}
 
 	// ─────────────────────────────────────────────
-	//  IStateTagService 實作
+	//  IStateTagService Implementation
 	// ─────────────────────────────────────────────
 
 	/// <inheritdoc/>
@@ -131,7 +132,7 @@ public sealed class TrceStateTagPlugin : TrcePlugin, IStateTagService
 	/// <inheritdoc/>
 	public void AddTag( GameObject target, string tag, float? durationSeconds = null )
 	{
-		// 只有標籤不存在時才真正添加，並發布事件（防止重複添加觸發冗餘事件）
+		// Only add and fire event if the tag is not already present (prevents redundant events).
 		bool alreadyHas = target.Tags.Has( tag );
 
 		if ( !alreadyHas )
@@ -140,7 +141,7 @@ public sealed class TrceStateTagPlugin : TrcePlugin, IStateTagService
 			GlobalEventBus.Publish( new CoreEvents.TagAddedEvent( target, tag ) );
 		}
 
-		// 若有提供持續時間，無論是否為新添加，皆更新（重置）計時器
+		// If a duration is provided, always update (reset) the timer regardless of whether the tag was just added.
 		if ( durationSeconds.HasValue )
 		{
 			var key = (target, tag);
@@ -148,20 +149,20 @@ public sealed class TrceStateTagPlugin : TrcePlugin, IStateTagService
 		}
 		else if ( alreadyHas )
 		{
-			// 標籤已存在且無持續時間 → No-Op（保持原狀，不清除既有計時器）
+			// Tag already exists with no duration provided → No-Op (preserve existing timer if any).
 		}
 	}
 
 	/// <inheritdoc/>
 	public void RemoveTag( GameObject target, string tag )
 	{
-		// 只有標籤確實存在時才移除，並發布事件
+		// Only remove and fire event if the tag actually exists.
 		if ( !target.Tags.Has( tag ) )
 			return;
 
 		target.Tags.Remove( tag );
 
-		// 同步移除對應的計時器（若有）
+		// Also remove the corresponding timer entry (if any).
 		var key = (target, tag);
 		_timers.Remove( key );
 

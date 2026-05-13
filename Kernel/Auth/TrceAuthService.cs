@@ -33,7 +33,15 @@ namespace Trce.Kernel.Auth
 	[Title( "TRCE Auth Service" ), Group( "Trce - Kernel" ), Icon( "security" )]
 	public class TrceAuthService : GameObjectSystem, ISceneStartup, IAuthService
 	{
-		public static TrceAuthService Instance { get; private set; }
+		/// <summary>
+		/// P2-2: Internal direct-access instance. Framework subsystems (e.g. TrceCommandManager)
+		/// that reside in the same assembly may use this for zero-overhead access.
+		/// <b>External code (plugins, user assemblies) must use
+		/// <c>TrceServiceManager.Instance.GetService&lt;IAuthService&gt;()</c> instead.</b>
+		/// Keeping Instance internal prevents the dual-access anti-pattern where new developers
+		/// bypass the service locator and create hidden coupling.
+		/// </summary>
+		internal static TrceAuthService Instance { get; private set; }
 
 		private ConcurrentDictionary<ulong, PlayerSession> sessions = new();
 		private RealTimeSince timeSinceCleanup = 0;
@@ -320,7 +328,7 @@ namespace Trce.Kernel.Auth
 			}
 
 			await PermissionNode.AddNodeToGroupAsync( groupName, node );
-			Log.Info( $"[Auth] 已將節點 '{node}' 加入群組 '{groupName}'。" );
+			Log.Info( $"[Auth] Successfully added node '{node}' to group '{groupName}'." );
 		}
 
 		[Sandbox.ConCmd( "trce_perm_info" )]

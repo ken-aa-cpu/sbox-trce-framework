@@ -5,6 +5,7 @@ using System.Linq;
 using Trce.Kernel.Net;
 using Trce.Kernel.Auth;
 using Trce.Kernel.Bridge;
+using Trce.Kernel.Plugin;
 
 namespace Trce.Plugins.Navigation
 {
@@ -34,9 +35,9 @@ namespace Trce.Plugins.Navigation
 
 			var root = other.GameObject.Root;
 
-			// Permission Check
+			// Permission Check — P2-2: resolve via ServiceManager, not TrceAuthService.Instance directly.
 			var ownerConn = root?.Network?.Owner;
-			var authService = TrceAuthService.Instance;
+			var authService = TrceServiceManager.Instance?.GetService<IAuthService>();
 			if ( ownerConn != null && authService != null )
 			{
 				ulong steamId = ownerConn.SteamId;

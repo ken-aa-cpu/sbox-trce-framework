@@ -2,6 +2,7 @@ using Sandbox;
 using System;
 using System.Collections.Generic;
 using Trce.Kernel.Net;
+using Trce.Kernel.Plugin;
 
 namespace Trce.Plugins.Combat
 
@@ -218,10 +219,12 @@ namespace Trce.Plugins.Combat
 		}
 
 		/// <summary>
-		/// P0-4: Clears all static hit-validation state.
-		/// Called by <see cref="Trce.Kernel.Bridge.SandboxBridge.OnLevelLoaded"/> on every scene change.
+		/// P0-1 / P0-4: Clears all static hit-validation state.
+		/// Named <c>ResetForNewScene</c> to follow the <see cref="Trce.Kernel.Plugin.ISceneResettable"/> convention.
+		/// Cannot implement the interface directly because static classes cannot implement interfaces in C#.
+		/// Called explicitly from <see cref="Trce.Kernel.Bridge.SandboxBridge.OnLevelLoaded"/> on every scene change.
 		/// </summary>
-		public static void ResetAll()
+		public static void ResetForNewScene()
 		{
 			suspiciousCount.Clear();
 			lastFireTime.Clear();

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Trce.Kernel.Plugin;
 using Trce.Kernel.Storage;
 
 namespace Trce.Kernel.Auth
@@ -58,10 +59,12 @@ namespace Trce.Kernel.Auth
 		}
 
 		/// <summary>
-		/// P0-5: Clears all static state so the next scene starts with a clean slate.
-		/// Must be called from SandboxBridge.OnLevelLoaded() before InitializeAsync().
+		/// P0-1 / P0-5: Clears all static state so the next scene starts with a clean slate.
+		/// Named <c>ResetForNewScene</c> to follow the <see cref="Trce.Kernel.Plugin.ISceneResettable"/> convention.
+		/// Cannot implement the interface directly because static classes cannot implement interfaces in C#.
+		/// Called explicitly from <see cref="Trce.Kernel.Bridge.SandboxBridge.OnLevelLoaded"/> on every scene change.
 		/// </summary>
-		public static void ResetStatic()
+		public static void ResetForNewScene()
 		{
 			_allGroups = new();
 			_allUsers = new();

@@ -3,41 +3,42 @@ using Sandbox;
 namespace Trce.Kernel.Player
 {
 	/// <summary>
-	///   Citizen 介面：定義了所有「公民」（玩家或 NPC）必須具備的控制接口。
-	///   這使得 AI 系統與玩家輸入手動控制可以共用同一套邏輯。
+	/// Citizen interface: defines the control surface that all "citizens" (players or NPCs) must expose.
+	/// Allows AI systems and player input to share the same logic pipeline.
 	/// </summary>
 	public interface ICitizen
 	{
-		/// <summary> 
-		///   獲取或設定公民的意圖（Intent）。
-		///   對於玩家，這通常由輸入系統每幀更新。
-		///   對於 NPC，這由 AI 決策系統設定。
+		/// <summary>
+		/// Gets or sets the citizen's current intent.
+		/// For players this is updated every frame by the input system.
+		/// For NPCs this is set by the AI decision system.
 		/// </summary>
 		CitizenIntent Intent { get; set; }
 
-		/// <summary> 引用所屬的 GameObject </summary>
+		/// <summary> Reference to the owning <see cref="GameObject"/>. </summary>
 		GameObject GameObject { get; }
 
-		/// <summary> 世界座標位置 </summary>
+		/// <summary> World-space position. </summary>
 		Vector3 Position { get; set; }
 
-		/// <summary> 身體旋轉 </summary>
+		/// <summary> Body rotation. </summary>
 		Rotation Rotation { get; set; }
 
-		/// <summary> 視線/頭部旋轉 </summary>
+		/// <summary> Eye / head rotation. </summary>
 		Rotation EyeRotation { get; set; }
 
-		/// <summary> 
-		///   主動執行一個具名動作。
-		///   由 ActionEngine 解析名稱並轉換為動畫參數或腳本邏輯。
+		/// <summary>
+		/// Executes a named action.
+		/// The ActionEngine resolves the name into animation parameters or script logic.
 		/// </summary>
 		void ExecuteAction( string actionName );
 
-		/// <summary> 當有動作被請求時觸發 </summary>
+		/// <summary> Fired when an action is requested (e.g. by input or AI). </summary>
 		event System.Action<string> OnActionRequested;
 
-		/// <summary> 
-		///   強制轉換意圖，用於過場動畫或受控狀態（如被擊昏）。
+		/// <summary>
+		/// When <c>true</c>, the citizen is under script control (cutscene, forced state such as being knocked out).
+		/// All action requests are silently discarded.
 		/// </summary>
 		bool IsControlledByScript { get; set; }
 	}

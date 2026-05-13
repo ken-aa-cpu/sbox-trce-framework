@@ -14,6 +14,22 @@ namespace Trce.Kernel.Papi
 	[Title( "Placeholder API" ), Group( "Trce - Kernel" )]
 	public class PlaceholderAPI : Component
 	{
+		/// <summary>
+		/// P1-3: The singleton global instance of <see cref="PlaceholderAPI"/>.
+		/// <para>
+		/// <b>Cross-scene lifecycle:</b> This field is set in <see cref="OnAwake"/> when
+		/// <see cref="IsGlobal"/> is <c>true</c>, and is explicitly cleared in
+		/// <see cref="OnDestroy"/> when the scene unloads so that no subsequent
+		/// code receives a stale reference to a destroyed Component. A new global instance
+		/// is created fresh each time the scene (re-)starts.
+		/// </para>
+		/// <para>
+		/// <b>Does NOT need to implement <see cref="Trce.Kernel.Plugin.ISceneResettable"/>:</b>
+		/// s&amp;box automatically calls <c>OnDestroy</c> on every Component when a Scene is
+		/// unloaded, which handles cleanup. ISceneResettable is for <i>static</i> state that
+		/// lives outside the Component graph.
+		/// </para>
+		/// </summary>
 		private static PlaceholderAPI globalInstance;
 		public static PlaceholderAPI Global => globalInstance;
 
@@ -47,6 +63,21 @@ namespace Trce.Kernel.Papi
 			}
 			Log.Info( $"[PAPI:{( IsGlobal ? "Global" : "Local" )}] Placeholder system initialized." );
 		}
+
+		/// <summary>
+		/// P1-3: Clears the static <see cref="globalInstance"/> reference when this Component is
+		/// destroyed (e.g. on scene unload). Prevents any code from receiving a stale, post-destroy
+		/// Component reference between scene transitions.
+		/// </summary>
+		protected override void OnDestroy()
+		{
+			if ( globalInstance == this )
+			{
+				globalInstance = null;
+				Log.Info( "[PAPI] Global PlaceholderAPI instance destroyed — cleared static reference." );
+			}
+		}
+
 
 		/// <summary>Find the closest PAPI instance to the given context.</summary>
 		public static PlaceholderAPI For( GameObject context )

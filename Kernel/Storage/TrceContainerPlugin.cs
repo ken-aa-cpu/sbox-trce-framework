@@ -31,7 +31,7 @@ public class TrceContainerPlugin : TrcePlugin, IContainerService
                 {
                     Capacity = capacity,
                     Items = new List<ItemStack>(capacity),
-                    Lock = new SemaphoreSlim(1, 1) // 初始即開放，一次僅允許一條執行緒進入
+                    Lock = new SemaphoreSlim(1, 1) // Initially open; only one thread may enter at a time.
                 };
             }
         }
@@ -52,7 +52,7 @@ public class TrceContainerPlugin : TrcePlugin, IContainerService
         await state.Lock.WaitAsync();
         try
         {
-            // 優先尋找相同 ItemId 的 ItemStack 進行合併（ItemStack 無 MaxStackSize，直接合併）
+            // Prefer merging into an existing ItemStack with the same ItemId (no MaxStackSize limit — merge directly).
             for (int i = 0; i < state.Items.Count; i++)
             {
                 if (item.Amount <= 0) break;
@@ -61,19 +61,19 @@ public class TrceContainerPlugin : TrcePlugin, IContainerService
                 if (existing.ItemId == item.ItemId)
                 {
                     state.Items[i] = existing.Merge(item);
-                    item = default; // 全部合併進去了
+                    item = default; // Fully merged.
                     break;
                 }
             }
 
-            // 若還有剩餘物品，尋找空位(槽位容量)放置新 Stack
+            // If there are still remaining items, find an empty slot (within capacity) and add a new stack.
             if (item.Amount > 0 && state.Items.Count < state.Capacity)
             {
                 state.Items.Add(item);
-                return default; // default(ItemStack) 代表為空，全部已放入
+                return default; // default(ItemStack) means empty — all items were placed.
             }
 
-            return item; // 回傳放不下的剩餘物品
+            return item; // Return the leftover items that could not fit.
         }
         finally
         {
@@ -99,7 +99,7 @@ public class TrceContainerPlugin : TrcePlugin, IContainerService
             int takenCount = 0;
             ItemStack lastTaken = default;
 
-            // 從後面往前遍歷，方便在扣光時直接移除元素且不影響索引
+            // Traverse from back to front so removing fully-depleted stacks does not shift remaining indices.
             for (int i = state.Items.Count - 1; i >= 0; i--)
             {
                 if (remainingToTake <= 0) break;
@@ -116,7 +116,7 @@ public class TrceContainerPlugin : TrcePlugin, IContainerService
                     }
                     else
                     {
-                        // 扣除所需的數量，把剩餘的部份寫回 List
+                        // Deduct the required amount and write the remainder back to the list.
                         var splitResult = existing.Split(remainingToTake);
                         state.Items[i] = splitResult.remainder;
                         takenCount += remainingToTake;
@@ -127,8 +127,8 @@ public class TrceContainerPlugin : TrcePlugin, IContainerService
 
             if (takenCount > 0)
             {
-                // 我們累積了取出的總數 takenCount
-                // (如果您這有建構子或其他調整方式可以自行替換，此處使用 with 語法建立回傳品)
+                // Construct a new ItemStack representing the accumulated taken amount.
+                // (Replace with a constructor or factory if one becomes available.)
                 return new ItemStack(lastTaken.ItemId, takenCount, lastTaken.Metadata);
             }
 
@@ -151,12 +151,12 @@ public class TrceContainerPlugin : TrcePlugin, IContainerService
                 return Array.Empty<ItemStack>();
         }
 
-        // GetContents 是同步的，若使用 SemaphoreSlim(1,1) 若遇爭用則短暫等待，避免 Deadlock
+        // GetContents is synchronous. If using SemaphoreSlim(1,1) and contention occurs, wait briefly to avoid deadlock.
         if (state.Lock.Wait(50))
         {
             try
             {
-                return state.Items.ToArray(); // 回傳快照(Snapshot)，杜絕外部直接篡改內部指標
+                return state.Items.ToArray(); // Return a snapshot so callers cannot mutate internal state directly.
             }
             finally
             {
@@ -184,7 +184,7 @@ public class TrceContainerPlugin : TrcePlugin, IContainerService
             }
         }
 
-        // 確保完成當前操作後再銷毀
+        // Ensure any in-flight operation completes before destroying.
         await state.Lock.WaitAsync();
         try
         {
@@ -208,7 +208,7 @@ public class TrceContainerPlugin : TrcePlugin, IContainerService
                 var state = kvp.Value;
                 try
                 {
-                    // 強制解除卡死的鎖，為 Dispose 做準備
+                    // Force-release any stuck lock before Dispose to prevent deadlocks.
                     if (state.Lock.CurrentCount == 0)
                     {
                         state.Lock.Release();

@@ -7,9 +7,9 @@ using Trce.Kernel.Plugin.Pawn.Base;
 namespace Trce.Kernel.Plugin.Pawn
 {
     /// <summary>
-    ///   人形動畫引擎 (Humanoid Model Engine)
-    ///   負責將 CitizenIntent 轉換為 s&box 原生 Citizen 模型的 AnimGraph 參數。
-    ///   已根據官方動畫規範重構，消除硬編碼以提高擴展性。
+    /// Humanoid animation engine.
+    /// Translates <see cref="CitizenIntent"/> into s&amp;box native Citizen model AnimGraph parameters.
+    /// Refactored to the official animation spec — hardcoded strings eliminated for extensibility.
     /// </summary>
     [Title( "TRCE Humanoid Model Engine" )]
     [Category( "TRCE Core - Visuals" )]
@@ -27,7 +27,7 @@ namespace Trce.Kernel.Plugin.Pawn
         [Property, Group( "Animation Settings" )] public float RunSpeed { get; set; } = 300f;
 
         [Property, Group( "Animation Mapping" )]
-        [Description( "動作指令與 AnimGraph 參數的映射表 (例如: attack_primary -> b_attack)" )]
+        [Description( "Mapping table from logical action names to AnimGraph parameter names (e.g. attack_primary -> b_attack)" )]
         public Dictionary<string, string> ActionMap { get; set; } = new()
         {
             { "attack_primary", "b_attack" }
@@ -37,35 +37,35 @@ namespace Trce.Kernel.Plugin.Pawn
         {
             if ( TargetModel == null ) return;
 
-            // 檢查是否有掛載 模型資源 (2026 標準寫法)
+            // Verify that a model resource is assigned (2026 API standard).
             if ( TargetModel.Model == null )
             {
-                Log.Warning( $"[TRCE] {GameObject.Name} 的 TargetModel 尚未掛載模型資源！" );
+                Log.Warning( $"[TRCE] {GameObject.Name}: TargetModel has no model resource assigned." );
                 return;
             }
 
-            // 檢查組件是否啟用了動畫圖
+            // Verify that AnimGraph is enabled on the renderer.
             if ( !TargetModel.UseAnimGraph )
             {
-                Log.Warning( $"[TRCE] {GameObject.Name} 未啟用 UseAnimGraph，這會導致 T-Pose。" );
+                Log.Warning( $"[TRCE] {GameObject.Name}: UseAnimGraph is not enabled — this will cause a T-Pose." );
             }
 
             var controller = GameObject.Components.Get<CharacterController>();
             if ( controller == null ) return;
 
-            // 1. 設定空中/地面狀態 (解除十字架 T-Pose)
+            // 1. Set grounded / airborne state (prevents T-Pose cross-lock).
             TargetModel.Set( GroundedParam, controller.IsOnGround );
             TargetModel.Set( "b_grounded", controller.IsOnGround );
 
-            // 2. 速度計算：直接從 CharacterController.Velocity 獲取真正的物理速度
-            // 將世界座標下的物理速度轉換為角色局部空間的 X (前後) 與 Y (左右)
+            // 2. Velocity calculation: read true physics velocity from CharacterController.
+            // Transform world-space velocity into character-local X (forward/back) and Y (left/right).
             var localVelocity = GameObject.Transform.Rotation.Inverse * controller.Velocity;
-            
-            // 計算移動比例：將本地空間速度除以 WalkSpeed
+
+            // Compute movement ratio: divide local-space velocity by WalkSpeed.
             float ratioX = localVelocity.x / WalkSpeed;
             float ratioY = localVelocity.y / WalkSpeed;
 
-            // 寫入移動參數 (對齊 s&box 官方規範，Raw Velocity 以及 move ratio)
+            // Write movement parameters (aligned with s&box official spec for raw velocity and move ratio).
             TargetModel.Set( MoveXParam, ratioX );
             TargetModel.Set( MoveYParam, ratioY );
             TargetModel.Set( "move_x", ratioX );
@@ -73,11 +73,11 @@ namespace Trce.Kernel.Plugin.Pawn
             TargetModel.Set( "wish_x", ratioX );
             TargetModel.Set( "wish_y", ratioY );
 
-            // 3. 處理跑步動畫切換 (依據物理水平速度大小)
+            // 3. Handle run/walk animation switch (based on horizontal physics speed).
             float horizontalSpeed = localVelocity.WithZ( 0 ).Length;
             TargetModel.Set( RunParam, horizontalSpeed > RunSpeedThreshold );
 
-            // 4. 跳躍觸發 (使用意圖中的 WishJump)
+            // 4. Jump trigger (driven by WishJump from intent).
             TargetModel.Set( JumpParam, intent.WishJump );
             TargetModel.Set( "b_jump", intent.WishJump );
         }
@@ -86,7 +86,7 @@ namespace Trce.Kernel.Plugin.Pawn
         {
             base.HandleActionRequested( actionName );
 
-            // 透過 ActionMap 將邏輯動作映射至視覺動畫觸發器
+            // Map the logical action to a visual animation trigger via ActionMap.
             if ( ActionMap != null && ActionMap.TryGetValue( actionName, out var triggerName ) )
             {
                 TargetModel.Set( triggerName, true );

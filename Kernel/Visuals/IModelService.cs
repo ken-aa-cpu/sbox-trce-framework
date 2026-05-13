@@ -3,20 +3,20 @@ using Sandbox;
 namespace Trce.Kernel.Visuals
 {
 	/// <summary>
-	/// 模型引擎服務介面，用於解耦核心邏輯與具體的渲染實作。
+	/// Model engine service interface, decoupling core logic from specific rendering implementations.
 	/// </summary>
 	public interface IModelService
 	{
-		/// <summary> 設定動畫參數 (float) </summary>
+		/// <summary> Sets an animation parameter (float). </summary>
 		void SetAnimParameter( GameObject target, string paramName, float value );
 
-		/// <summary> 設定動畫參數 (bool) </summary>
+		/// <summary> Sets an animation parameter (bool). </summary>
 		void SetAnimParameter( GameObject target, string paramName, bool value );
 
-		/// <summary> 設定動畫參數 (int) </summary>
+		/// <summary> Sets an animation parameter (int). </summary>
 		void SetAnimParameter( GameObject target, string paramName, int value );
 
-		/// <summary> 設定模型的路徑 </summary>
+		/// <summary> Sets the model path on the target. </summary>
 		void SetModel( GameObject target, string modelPath );
 	}
 }

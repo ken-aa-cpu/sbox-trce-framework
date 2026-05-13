@@ -43,22 +43,54 @@ namespace Trce.Kernel.Bridge
 
 		public void OnLevelLoaded()
 		{
-			// P0-3: Unsubscribe stale TrcePlayerManager event delegates before the new scene starts.
+			// ── Precondition assertion ───────────────────────────────────────────────────
+			// If TrceServiceManager is absent the rest of the reset sequence cannot complete
+			// safely. Fail loudly here rather than silently mid-sequence.
+			if ( TrceServiceManager.Instance == null )
+			{
+				Log.Error( "[SandboxBridge] OnLevelLoaded: TrceServiceManager.Instance is null. " +
+				           "Aborting level-load sequence to prevent partial state corruption." );
+				return;
+			}
+
+			// ── Ordered reset sequence ───────────────────────────────────────────────────
+			// WARNING: The steps below have implicit ordering dependencies.
+			// DO NOT reorder without updating ALL step comments below.
+			// ─────────────────────────────────────────────────────────────────────────────
+
+			// Step 1: Shut down the player manager FIRST.
+			// Reason: it may hold active event subscriptions that must be torn down
+			// before the event bus is cleared (Step 2). Shutting down after would leave
+			// dangling delegate references in the bus.
 			Trce.Kernel.Player.TrcePlayerManager.Instance?.Shutdown();
 
-			// Purge all stale delegates before any plugin re-subscribes in the new scene.
+			// Step 2: Purge the core event bus BEFORE any plugin re-subscribes.
+			// Reason: must happen after Step 1 (player manager is unsubscribed) and
+			// before Step 3 (service registry clear) so no stale delegate can fire
+			// during or after registry teardown.
 			CoreEventsBus.ClearAllCoreEvents();
 
-			// P2-2: Clear the service registry so stale registrations cannot bleed into the next scene.
+			// Step 3: Clear the service registry AFTER the event bus is purged.
+			// Reason: clearing services before events could allow a service's destructor
+			// or a lingering event handler to call GetService<T>() on a half-cleared registry.
+			// Must happen before Step 4 so newly reset static state is not immediately
+			// re-registered with stale service references.
 			TrceServiceManager.Instance?.ClearAll();
 
-			// P0-4: Clear server-side hit-validation dictionaries that persist across scenes.
-			Trce.Plugins.Combat.ServerHitValidator.ResetAll();
+			// Step 4: Reset per-plugin static state AFTER the registry is cleared (Step 3).
+			// Reason: these classes hold static dictionaries whose lifetime is unbound from
+			// the Component graph; they must be wiped before any plugin in the new scene
+			// calls InitializeAsync() and starts re-populating them.
+			// NOTE: Classes implementing ISceneResettable do NOT need a new manual entry here.
+			// P0-1 / P0-4:
+			Trce.Plugins.Combat.ServerHitValidator.ResetForNewScene();
+			// P0-1 / P0-5:
+			Trce.Kernel.Auth.PermissionNode.ResetForNewScene();
 
-			// P0-5: Clear stale PermissionNode static state so the next scene starts clean.
-			Trce.Kernel.Auth.PermissionNode.ResetStatic();
-
-			// Register this bridge first so subsequent systems can resolve it immediately.
+			// Step 5: Register this bridge LAST, after the registry is clean (Step 3).
+			// Reason: subsequent systems that call OnLevelLoaded() (registered later in s&box
+			// startup order) may immediately try to resolve ISandboxBridge. The bridge must
+			// be present before they do.
 			TrceServiceManager.Instance?.RegisterService<ISandboxBridge>( this, ServicePriority.Kernel );
 
 			Log.Info( " " );
@@ -67,6 +99,7 @@ namespace Trce.Kernel.Bridge
 			Log.Info( "============================================" );
 			Log.Info( " " );
 		}
+
 
 		// ═══════════════════════════════════════
 		//  Identity

@@ -210,7 +210,7 @@ namespace Trce.Plugins.Finance
 		private void HandleRoundEnded( int roundNumber )
 		{
 			if ( !(SandboxBridge.Instance?.IsServer ?? false) ) return;
-			var allSessions = TrceAuthService.Instance?.GetActiveSessions() ?? new List<Kernel.Auth.PlayerSession>();
+			var allSessions = TrceServiceManager.Instance?.GetService<IAuthService>()?.GetActiveSessions() ?? new List<Kernel.Auth.PlayerSession>();
 			foreach ( var session in allSessions )
 			{
 				var playerObj = TrceServiceManager.Instance?.GetService<IPawnService>()?.GetPlayerPawn( session.SteamId );

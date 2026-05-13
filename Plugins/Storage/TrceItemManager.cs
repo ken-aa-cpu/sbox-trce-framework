@@ -79,8 +79,8 @@ namespace Trce.Plugins.Storage
 		{
 			if ( !(SandboxBridge.Instance?.IsServer ?? false) ) return;
 
-			// Permission check
-			var authService = TrceAuthService.Instance;
+			// Permission check — P2-2: resolve via ServiceManager, not TrceAuthService.Instance directly.
+			var authService = TrceServiceManager.Instance?.GetService<IAuthService>();
 			if ( authService != null && !authService.HasPermission( userSteamId, "trce.items.use" ) )
 			{
 				Log.Warning( $"[TRCE-Items] Player {userSteamId} lacks permission to use items." );

@@ -208,10 +208,16 @@ namespace Trce.Kernel.Plugin
 		}
 
 		/// <summary>
-		/// <para>【Zero-GC Service Lookup】 Safely looks up a registered service via <see cref="TrceServiceManager"/>.</para>
+		/// <para>【Zero-GC Service Lookup — Optional Dependency】 Safely looks up a registered service via <see cref="TrceServiceManager"/>.</para>
 		/// <para>
 		/// This method replaces the old hardcoded static Instance lookup pattern, achieving true decoupling.
-		/// If the service is not found, silently returns <c>null</c> without throwing — callers decide how to handle a missing dependency.
+		/// If the service is not found, logs a warning and returns <c>null</c> — callers decide how to handle a missing dependency.
+		/// </para>
+		/// <para>
+		/// <b>⚠ Return value may be null. Callers MUST null-check before use.</b><br/>
+		/// Use this overload only for <i>optional</i> dependencies. For hard (required) dependencies
+		/// that must exist at runtime, use <see cref="GetServiceOrThrow{T}"/> instead, which provides
+		/// a clear failure message pointing to the root cause rather than a later NullReferenceException.
 		/// </para>
 		/// </summary>
 		/// <typeparam name="T">The public contract type of the service (Interface or Class).</typeparam>
@@ -229,6 +235,45 @@ namespace Trce.Kernel.Plugin
 			           + "Ensure the providing plugin is loaded and calls RegisterService in OnPluginEnabled." );
 			return null;
 		}
+
+		/// <summary>
+		/// <para>【P1-2 — Hard Dependency Service Lookup】 Looks up a required service and throws if it is not found.</para>
+		/// <para>
+		/// Use this variant when the calling plugin <b>cannot function</b> without the requested service.
+		/// Throwing an <see cref="InvalidOperationException"/> here ensures that the stack trace points
+		/// directly at the missing dependency rather than at a later <c>NullReferenceException</c> whose
+		/// cause would otherwise be opaque.
+		/// </para>
+		/// <para>
+		/// <b>Usage example:</b>
+		/// <code>
+		/// // ❌ Silent null — stack trace points to wrong place on failure
+		/// var auth = GetService&lt;IAuthService&gt;();
+		/// auth.CheckPermission(...); // NullReferenceException here
+		///
+		/// // ✅ Immediate, descriptive failure at the real root cause
+		/// var auth = GetServiceOrThrow&lt;IAuthService&gt;();
+		/// auth.CheckPermission(...);
+		/// </code>
+		/// </para>
+		/// </summary>
+		/// <typeparam name="T">The public contract type of the service (Interface or Class).</typeparam>
+		/// <returns>The service instance. Never null.</returns>
+		/// <exception cref="InvalidOperationException">
+		/// Thrown when the service of type <typeparamref name="T"/> is not registered in <see cref="TrceServiceManager"/>.
+		/// The exception message names the missing service and the plugin that requested it.
+		/// </exception>
+		public T GetServiceOrThrow<T>() where T : class
+		{
+			var service = TrceServiceManager.Instance?.GetService<T>();
+			if ( service is not null )
+				return service;
+
+			throw new InvalidOperationException(
+				$"[{PluginId}] Required service '{typeof(T).Name}' is not registered in TrceServiceManager. "
+				+ "Ensure the providing plugin is loaded before this plugin and calls RegisterService in OnPluginEnabled." );
+		}
+
 
 		/// <summary>
 		/// Looks up another loaded TRCE plugin instance in the scene via <see cref="PluginBootstrapper"/>.
@@ -252,7 +297,7 @@ namespace Trce.Kernel.Plugin
 		/// <returns>A <see cref="Task"/> representing the async initialization operation.</returns>
 		public virtual async Task InitializeAsync()
 		{
-			// SRE 登記失敗不應阻止 Plugin 啟動，獨立處理
+			// SRE check-in failure must not block plugin startup — handle independently.
 			try
 			{
 				SreSystem.Instance?.CheckIn( PluginId, Version );
@@ -262,7 +307,7 @@ namespace Trce.Kernel.Plugin
 				Log.Warning( $"[SRE] Registration error for '{PluginId}': {e.Message}" );
 			}
 
-			// Plugin 主要初始化
+			// Main plugin initialization.
 			try
 			{
 				await OnPluginEnabled();
