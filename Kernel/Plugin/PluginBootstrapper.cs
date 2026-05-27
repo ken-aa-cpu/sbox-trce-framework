@@ -40,6 +40,9 @@ namespace Trce.Kernel.Plugin
 			// P1-4: Sort plugins by dependency order (Kahn's topological sort).
 			var sortedList = TopologicalSort( pluginList );
 
+			// Pre-flight: validate declared service dependencies before any plugin initializes.
+			ValidateDependencyGraph( sortedList );
+
 			foreach ( var plugin in sortedList )
 			{
 				try
@@ -142,6 +145,48 @@ namespace Trce.Kernel.Plugin
 
 			Log.Info( $"[Bootstrapper] Dependency-sorted initialisation order: {string.Join( " → ", sorted.Select( p => p.PluginId ) )}" );
 			return sorted;
+		}
+
+		/// <summary>
+		/// Validates that all services declared in <see cref="TrcePluginAttribute.RequiredServices"/>
+		/// are already registered in <see cref="TrceServiceManager"/> before plugin initialization begins.
+		/// <para>
+		/// This is a best-effort pre-flight check. It catches missing service registrations early
+		/// (at scene startup) rather than at the first runtime callsite.
+		/// </para>
+		/// <para>
+		/// <b>Limitation:</b> services registered lazily inside <see cref="TrcePlugin.OnPluginEnabled"/>
+		/// won't be visible at this validation point. Those cases are by definition order-dependent
+		/// and should declare explicit plugin-level dependencies via <see cref="TrcePluginAttribute.Depends"/>.
+		/// </para>
+		/// </summary>
+		private void ValidateDependencyGraph( List<TrcePlugin> sortedPlugins )
+		{
+			var hasWarnings = false;
+
+			foreach ( var plugin in sortedPlugins )
+			{
+				var attr = plugin.Info;
+				if ( attr?.RequiredServices == null || attr.RequiredServices.Length == 0 )
+					continue;
+
+				foreach ( var serviceType in attr.RequiredServices )
+				{
+					if ( serviceType == null ) continue;
+
+					var registered = TrceServiceManager.Instance?.HasService( serviceType ) ?? false;
+					if ( !registered )
+					{
+						Log.Warning( $"[Bootstrapper] ⚠ Plugin '{plugin.PluginId}' requires service " +
+						             $"'{serviceType.Name}' which is NOT registered. " +
+						             $"Ensure the providing plugin is present and listed in Depends." );
+						hasWarnings = true;
+					}
+				}
+			}
+
+			if ( !hasWarnings )
+				Log.Info( "[Bootstrapper] ✅ Dependency graph validation passed — all declared services are present." );
 		}
 
 		public T GetPlugin<T>() where T : TrcePlugin

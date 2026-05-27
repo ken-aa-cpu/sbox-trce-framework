@@ -32,6 +32,13 @@ namespace Trce.Kernel.Event
 	/// - <b>GC pressure:</b> Only when subscribing a new event type for the first time
 	///   (one-time <c>Action&lt;TEvent&gt;</c> delegate allocation); hot-path Publish is zero-alloc.
 	/// </para>
+	/// <para>
+	/// <b>Cross-entity subscriptions:</b><br/>
+	/// If a subscriber has an independent lifetime from this entity (e.g., a UI component
+	/// listening to a player entity), use <see cref="SubscribeWithToken{TEvent}"/> instead of
+	/// <see cref="Subscribe{TEvent}"/>. The returned <see cref="IDisposable"/> token automatically
+	/// unsubscribes when disposed, preventing memory leaks if the entity is destroyed first.
+	/// </para>
 	/// </summary>
 	public sealed class EntityEventBus : Component
 	{
@@ -67,6 +74,45 @@ namespace Trce.Kernel.Event
 			{
 				_handlers[key] = handler;
 			}
+		}
+
+		/// <summary>
+		/// Subscribes to an event and returns an <see cref="IDisposable"/> token.
+		/// <para>
+		/// <b>Use this overload for cross-entity subscriptions</b> — i.e., when the subscriber
+		/// outlives or has an independent lifetime from this entity's <see cref="GameObject"/>.
+		/// </para>
+		/// <para>
+		/// Disposing the returned token automatically calls <see cref="Unsubscribe{TEvent}"/>,
+		/// preventing stale delegate references and memory leaks even if the entity is destroyed first.
+		/// </para>
+		/// <para>
+		/// <b>Recommended pattern:</b>
+		/// <code>
+		/// // In the subscribing Component:
+		/// private IDisposable _dmgToken;
+		///
+		/// protected override void OnStart()
+		/// {
+		///     var bus = targetEntity.Components.Get&lt;EntityEventBus&gt;();
+		///     _dmgToken = bus.SubscribeWithToken&lt;DamageEvent&gt;(OnDamage);
+		/// }
+		///
+		/// protected override void OnDestroy()
+		/// {
+		///     _dmgToken?.Dispose();
+		/// }
+		/// </code>
+		/// </para>
+		/// </summary>
+		/// <typeparam name="TEvent">Event type; must be a <c>readonly struct</c> implementing <see cref="ITrceEvent"/>.</typeparam>
+		/// <param name="handler">The callback to invoke when the event fires.</param>
+		/// <returns>An <see cref="IDisposable"/> token. Dispose it to unsubscribe.</returns>
+		public IDisposable SubscribeWithToken<TEvent>(Action<TEvent> handler)
+			where TEvent : struct, ITrceEvent
+		{
+			Subscribe<TEvent>(handler);
+			return new EntityEventToken<TEvent>(this, handler);
 		}
 
 		/// <summary>
@@ -146,6 +192,32 @@ namespace Trce.Kernel.Event
 		protected override void OnDestroy()
 		{
 			_handlers.Clear();
+		}
+	}
+
+	/// <summary>
+	/// Represents a subscription token for an <see cref="EntityEventBus"/> event.
+	/// Disposing this token automatically unsubscribes the handler from the bus.
+	/// </summary>
+	internal sealed class EntityEventToken<TEvent> : IDisposable
+		where TEvent : struct, ITrceEvent
+	{
+		private readonly EntityEventBus _bus;
+		private readonly Action<TEvent> _handler;
+		private bool _disposed;
+
+		internal EntityEventToken(EntityEventBus bus, Action<TEvent> handler)
+		{
+			_bus     = bus;
+			_handler = handler;
+		}
+
+		/// <summary>Unsubscribes the handler from the bus. Safe to call multiple times.</summary>
+		public void Dispose()
+		{
+			if (_disposed) return;
+			_disposed = true;
+			_bus?.Unsubscribe<TEvent>(_handler);
 		}
 	}
 }

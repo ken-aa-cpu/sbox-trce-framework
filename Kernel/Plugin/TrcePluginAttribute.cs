@@ -29,6 +29,23 @@ namespace Trce.Kernel.Plugin
 
 		/// <summary> 軟依賴列表。不強制要求，但若存在會影響啟動順序 </summary>
 		public string[] SoftDepends { get; set; } = Array.Empty<string>();
+
+		/// <summary>
+		/// Optional list of service interface types this plugin requires to be registered
+		/// in <see cref="TrceServiceManager"/> before it can function correctly.
+		/// <para>
+		/// Declared types are validated by <see cref="PluginBootstrapper"/> at scene startup.
+		/// A warning is logged for each missing service before any plugin is initialized.
+		/// </para>
+		/// <para>
+		/// <b>Example:</b>
+		/// <code>
+		/// [TrcePlugin(Id = "game.combat", RequiredServices = new[] { typeof(IAuthService), typeof(IRoundLifecycleService) })]
+		/// public class CombatPlugin : TrcePlugin { ... }
+		/// </code>
+		/// </para>
+		/// </summary>
+		public Type[] RequiredServices { get; set; } = Array.Empty<Type>();
 	}
 }
 

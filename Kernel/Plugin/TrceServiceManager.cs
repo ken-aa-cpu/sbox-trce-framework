@@ -185,5 +185,16 @@ namespace Trce.Kernel.Plugin
 			_services.Clear();
 			Log.Info( "🧹 [TrceServiceManager] All services have been cleared." );
 		}
+
+		/// <summary>
+		/// Returns <c>true</c> if a service of the given type is currently registered.
+		/// Used by <see cref="PluginBootstrapper"/> for startup-time dependency graph validation.
+		/// </summary>
+		/// <param name="serviceType">The service interface type to check.</param>
+		public bool HasService( Type serviceType )
+		{
+			if ( serviceType == null ) return false;
+			return _services.ContainsKey( serviceType );
+		}
 	}
 }
