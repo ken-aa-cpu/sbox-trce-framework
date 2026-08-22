@@ -2,9 +2,15 @@
 
 <p align="left">
   <a href="https://ko-fi.com/kenaa45519" target="_blank"><img src="https://img.shields.io/badge/Ko--fi-Support%20Project-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
+  <img src="https://img.shields.io/badge/Status-Maintenance%20Paused-yellow?style=flat-square" alt="Status: Maintenance Paused">
   <img src="https://img.shields.io/badge/s&box-Compatible-5865F2?style=flat-square" alt="s&box">
   <img src="https://img.shields.io/badge/Language-C%23-239120?style=flat-square&logo=c-sharp" alt="C#">
 </p>
+
+> [!NOTE]
+> **維護狀態公告 / Maintenance Status**  
+> 此專案目前處於**暫停主動維護**狀態（作者目前無個人使用需求）。若社群有特定功能需求、Bug 修復或疑問，歡迎提交 Issue 或 Pull Request，收到需求後會適時進行維護與更新！  
+> *(This project is currently on a maintenance pause as the author no longer has an active personal use case. It will not be actively updated unless requested — feel free to open an Issue or PR if you need fixes or features!)*
 
 **A Spigot-inspired plugin framework for s&box.**  
 Build modular, maintainable multiplayer games — the way Minecraft server developers do it.
