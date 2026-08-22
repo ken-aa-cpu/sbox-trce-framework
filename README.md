@@ -1,5 +1,11 @@
 # TRCE Framework for s&box
 
+<p align="left">
+  <a href="https://ko-fi.com/kenaa45519" target="_blank"><img src="https://img.shields.io/badge/Ko--fi-Support%20Project-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
+  <img src="https://img.shields.io/badge/s&box-Compatible-5865F2?style=flat-square" alt="s&box">
+  <img src="https://img.shields.io/badge/Language-C%23-239120?style=flat-square&logo=c-sharp" alt="C#">
+</p>
+
 **A Spigot-inspired plugin framework for s&box.**  
 Build modular, maintainable multiplayer games — the way Minecraft server developers do it.
 
@@ -255,6 +261,18 @@ TRCE supports Firebase Realtime Database for persistent storage. To configure:
 2. Add `firebase_config.json` to your `.gitignore` — **never commit this file**.
 
 The config is loaded server-side only. Clients never see it.
+
+---
+
+## ☕ Support & Sponsorship
+
+If TRCE Framework helps you build awesome s&box games and saves your development time, consider buying me a coffee to support continuous updates and maintenance!
+
+<p align="left">
+  <a href="https://ko-fi.com/kenaa45519" target="_blank">
+    <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Buy Me a Coffee at ko-fi.com" height="38">
+  </a>
+</p>
 
 ---
 
