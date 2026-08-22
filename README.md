@@ -8,9 +8,8 @@
 </p>
 
 > [!NOTE]
-> **維護狀態公告 / Maintenance Status**  
-> 此專案目前處於**暫停主動維護**狀態（作者目前無個人使用需求）。若社群有特定功能需求、Bug 修復或疑問，歡迎提交 Issue 或 Pull Request，收到需求後會適時進行維護與更新！  
-> *(This project is currently on a maintenance pause as the author no longer has an active personal use case. It will not be actively updated unless requested — feel free to open an Issue or PR if you need fixes or features!)*
+> **Maintenance Status**  
+> This project is currently on a **maintenance pause** as the author no longer has an active personal use case for it. Active development and regular updates are paused, but issues and pull requests are always welcome — maintenance and bug fixes can be resumed upon community request!
 
 **A Spigot-inspired plugin framework for s&box.**  
 Build modular, maintainable multiplayer games — the way Minecraft server developers do it.
